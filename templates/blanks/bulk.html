@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Bulk Import - Culture Circle{% endblock %}
+{% block page_title %}Bulk Import{% endblock %}
+
+{% block topbar_actions %}
+<a href="/blanks" class="btn-ghost"><i class="bi bi-arrow-left me-1"></i> Back to Blanks</a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="cc-card">
+            <div class="cc-card-body">
+                <form method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:600;">Import Type</label>
+                        <select name="import_type" class="form-select" style="border-radius:8px;">
+                            <option value="blanks">Blank Types</option>
+                            <option value="mappings">SKU Mappings</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" style="font-size:13px; font-weight:600;">CSV File</label>
+                        <input type="file" name="csv_file" class="form-control" style="border-radius:8px;" accept=".csv" required>
+                    </div>
+                    <button type="submit" class="btn-cc"><i class="bi bi-upload me-1"></i> Import</button>
+                </form>
+                <hr style="margin:24px 0; border-color:#f1f3f5;">
+                <h6 style="font-size:13px; font-weight:700; margin-bottom:12px;">Expected CSV Formats</h6>
+                <div class="p-3 mb-2" style="background:#f8f9fa; border-radius:8px; font-size:12px;">
+                    <strong>Blanks:</strong> <code>blank_name,size,garment_type,color,current_stock,lead_time_days,min_batch_size</code>
+                </div>
+                <div class="p-3" style="background:#f8f9fa; border-radius:8px; font-size:12px;">
+                    <strong>Mappings:</strong> <code>product,brand,size,blank_name,blank_size</code>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

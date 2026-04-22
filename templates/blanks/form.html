@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if blank else 'Add' }} Blank - Culture Circle{% endblock %}
+{% block page_title %}{{ 'Edit' if blank else 'Add' }} Blank Type{% endblock %}
+
+{% block topbar_actions %}
+<a href="/blanks" class="btn-ghost"><i class="bi bi-arrow-left me-1"></i> Back to Blanks</a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-7">
+        <div class="cc-card">
+            <div class="cc-card-body">
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:600;">Blank Name *</label>
+                        <input type="text" name="blank_name" class="form-control" style="border-radius:8px;" value="{{ blank.blank_name if blank else '' }}" required placeholder="e.g., Black Oversized Tee">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" style="font-size:13px; font-weight:600;">Size *</label>
+                            <input type="text" name="size" class="form-control" style="border-radius:8px;" value="{{ blank.size if blank else '' }}" required placeholder="e.g., M">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" style="font-size:13px; font-weight:600;">Garment Type</label>
+                            <input type="text" name="garment_type" class="form-control" style="border-radius:8px;" value="{{ blank.garment_type if blank else '' }}" placeholder="e.g., Oversized T-Shirt">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" style="font-size:13px; font-weight:600;">Color</label>
+                            <input type="text" name="color" class="form-control" style="border-radius:8px;" value="{{ blank.color if blank else '' }}" placeholder="e.g., Black">
+                        </div>
+                        {% if not blank %}
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" style="font-size:13px; font-weight:600;">Current Stock</label>
+                            <input type="number" name="current_stock" class="form-control" style="border-radius:8px;" value="0" min="0">
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" style="font-size:13px; font-weight:600;">Lead Time (days)</label>
+                            <input type="number" name="lead_time_days" class="form-control" style="border-radius:8px;" value="{{ blank.lead_time_days if blank else 28 }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" style="font-size:13px; font-weight:600;">Min Batch Size</label>
+                            <input type="number" name="min_batch_size" class="form-control" style="border-radius:8px;" value="{{ blank.min_batch_size if blank else '' }}" placeholder="Optional">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" style="font-size:13px; font-weight:600;">Safety Buffer (days)</label>
+                            <input type="number" name="safety_buffer_days" class="form-control" style="border-radius:8px;" value="{{ blank.safety_buffer_days if blank else 7 }}">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" style="font-size:13px; font-weight:600;">Reorder Level (manual override)</label>
+                        <input type="number" name="reorder_level" class="form-control" style="border-radius:8px;" value="{{ blank.reorder_level if blank and blank.reorder_level else '' }}" placeholder="Leave empty for auto-calculate">
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn-cc">{{ 'Update Blank' if blank else 'Create Blank' }}</button>
+                        <a href="/blanks" class="btn-ghost">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

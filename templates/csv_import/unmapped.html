@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Unmapped SKUs - Culture Circle{% endblock %}
+{% block page_title %}Unmapped SKUs{% endblock %}
+
+{% block topbar_actions %}
+<a href="/" class="btn-ghost"><i class="bi bi-arrow-left me-1"></i> Back to Dashboard</a>
+{% endblock %}
+
+{% block content %}
+{% if items %}
+<div class="cc-card mb-3" style="border-color:var(--cc-blue);">
+    <div class="cc-card-body" style="padding:12px 20px; font-size:13px; color:var(--cc-blue);">
+        <i class="bi bi-info-circle me-1"></i> Auto-mapper couldn't find blanks for these SKUs. Map them manually or use the suggested type as a reference.
+    </div>
+</div>
+{% endif %}
+
+<div class="cc-card">
+    <div class="cc-card-header"><h6>{{ items | length }} unmapped SKU{{ 's' if items | length != 1 else '' }}</h6></div>
+    {% if items %}
+    <div class="table-responsive">
+        <table class="cc-table">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Brand</th>
+                    <th>Size</th>
+                    <th>Qty</th>
+                    <th>Auto-Detected</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>
+                        <div style="font-weight:500;">{{ item.product }}</div>
+                        {% if item.image_url %}
+                        <a href="{{ item.image_url }}" target="_blank" style="font-size:11px; color:var(--cc-text-muted);">View Image</a>
+                        {% endif %}
+                    </td>
+                    <td style="color:var(--cc-text-muted);">{{ item.brand }}</td>
+                    <td><span style="background:#f1f3f5; padding:2px 8px; border-radius:4px; font-size:12px;">{{ item.size }}</span></td>
+                    <td>{{ item.total_qty }}</td>
+                    <td>
+                        {% if item.suggested_garment %}
+                        <span class="badge-status badge-authorized">{{ item.suggested_garment }}</span>
+                        {% if item.suggested_color %}
+                        <span class="badge-status badge-pending">{{ item.suggested_color }}</span>
+                        {% endif %}
+                        {% else %}
+                        <span style="font-size:12px; color:var(--cc-text-muted);">No match</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-nowrap">
+                        <div class="d-flex gap-1">
+                            <a href="/blanks/mappings/add?product={{ item.product | urlencode }}&brand={{ item.brand | urlencode }}&size={{ item.size | urlencode }}" class="btn-cc btn-sm-cc">Map</a>
+                            <form method="post" action="/csv/unmapped/skip/{{ item.id }}" class="d-inline">
+                                <button type="submit" class="btn-ghost btn-sm-cc">Skip</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-check-circle" style="color:var(--cc-green);"></i>
+        <p>All SKUs are mapped!</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

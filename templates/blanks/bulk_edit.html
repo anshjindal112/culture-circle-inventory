@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Bulk Edit Blanks - Culture Circle{% endblock %}
+{% block page_title %}Bulk Edit Blanks{% endblock %}
+
+{% block topbar_actions %}
+<a href="/blanks" class="btn-ghost"><i class="bi bi-arrow-left me-1"></i> Back to Blanks</a>
+{% endblock %}
+
+{% block content %}
+<div class="cc-card">
+    <div class="cc-card-body">
+        <!-- Filters -->
+        <form method="get" class="filter-bar mb-4">
+            <select name="garment_type" class="form-select form-select-sm" style="width:auto;">
+                <option value="">All Garment Types</option>
+                {% for gt in garment_types %}
+                <option value="{{ gt.garment_type }}" {{ 'selected' if selected_type == gt.garment_type }}>{{ gt.garment_type }}</option>
+                {% endfor %}
+            </select>
+            <select name="color" class="form-select form-select-sm" style="width:auto;">
+                <option value="">All Colors</option>
+                {% for c in colors %}
+                <option value="{{ c.color }}" {{ 'selected' if selected_color == c.color }}>{{ c.color }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn-cc btn-sm-cc">Filter</button>
+            {% if selected_type or selected_color %}
+            <a href="/blanks/bulk-edit" class="btn-ghost btn-sm-cc">Clear</a>
+            {% endif %}
+        </form>
+
+        {% if blanks %}
+        <form method="post">
+            <input type="hidden" name="filter_garment_type" value="{{ selected_type }}">
+            <input type="hidden" name="filter_color" value="{{ selected_color }}">
+
+            <!-- Bulk Apply -->
+            <div class="p-3 mb-4" style="background:#f8f9fa; border-radius:10px; border:1px solid var(--cc-border);">
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 mb-1"><span style="font-size:12px; font-weight:600; color:var(--cc-text-muted);">Apply to all {{ blanks|length }} shown:</span></div>
+                    <div class="col-auto">
+                        <label style="font-size:11px; color:var(--cc-text-muted);">Lead Time</label>
+                        <input type="number" name="bulk_lead_time" class="form-control form-control-sm" style="border-radius:6px; width:90px;" placeholder="e.g. 28">
+                    </div>
+                    <div class="col-auto">
+                        <label style="font-size:11px; color:var(--cc-text-muted);">Min Batch</label>
+                        <input type="number" name="bulk_min_batch" class="form-control form-control-sm" style="border-radius:6px; width:90px;" placeholder="e.g. 50">
+                    </div>
+                    <div class="col-auto">
+                        <label style="font-size:11px; color:var(--cc-text-muted);">Safety Buffer</label>
+                        <input type="number" name="bulk_safety_buffer" class="form-control form-control-sm" style="border-radius:6px; width:90px;" placeholder="e.g. 7">
+                    </div>
+                    <div class="col-auto">
+                        <label style="font-size:11px; color:var(--cc-text-muted);">Reorder Level</label>
+                        <input type="number" name="bulk_reorder_level" class="form-control form-control-sm" style="border-radius:6px; width:90px;" placeholder="auto">
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" name="action" value="bulk_apply" class="btn-cc btn-sm-cc" onclick="return confirm('Apply to all {{ blanks|length }} blanks shown?')">Apply to All</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Editable Table -->
+            <div class="table-responsive">
+                <table class="cc-table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAll" checked></th>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Color</th>
+                            <th>Size</th>
+                            <th class="text-end">Stock</th>
+                            <th>Lead Time</th>
+                            <th>Min Batch</th>
+                            <th>Safety Buffer</th>
+                            <th>Reorder Level</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in blanks %}
+                        <tr>
+                            <td><input type="checkbox" name="blank_ids" value="{{ b.blank_id }}" class="blank-check" checked></td>
+                            <td style="font-weight:500; font-size:12px;">{{ b.blank_name }}</td>
+                            <td style="font-size:12px; color:var(--cc-text-muted);">{{ b.garment_type or '-' }}</td>
+                            <td style="font-size:12px;">{{ b.color or '-' }}</td>
+                            <td>{{ b.size }}</td>
+                            <td class="text-end" style="font-weight:600;">{{ b.current_stock | int }}</td>
+                            <td><input type="number" name="lead_time_{{ b.blank_id }}" class="form-control form-control-sm" style="width:70px; border-radius:6px;" value="{{ b.lead_time_days }}"></td>
+                            <td><input type="number" name="min_batch_{{ b.blank_id }}" class="form-control form-control-sm" style="width:70px; border-radius:6px;" value="{{ b.min_batch_size or '' }}" placeholder="-"></td>
+                            <td><input type="number" name="safety_buffer_{{ b.blank_id }}" class="form-control form-control-sm" style="width:70px; border-radius:6px;" value="{{ b.safety_buffer_days }}"></td>
+                            <td><input type="number" name="reorder_level_{{ b.blank_id }}" class="form-control form-control-sm" style="width:70px; border-radius:6px;" value="{{ b.reorder_level or '' }}" placeholder="auto"></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-3 d-flex align-items-center gap-3">
+                <button type="submit" name="action" value="individual" class="btn-cc">Save Individual Changes</button>
+                <span style="font-size:12px; color:var(--cc-text-muted);">{{ blanks|length }} blanks shown</span>
+            </div>
+        </form>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-funnel"></i>
+            <p>No blanks found. Try a different filter or <a href="/blanks/bulk-edit">clear filters</a>.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.getElementById('selectAll').addEventListener('change', function() {
+    document.querySelectorAll('.blank-check').forEach(cb => cb.checked = this.checked);
+});
+</script>
+{% endblock %}

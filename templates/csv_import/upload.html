@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Import CSV - Culture Circle{% endblock %}
+{% block page_title %}Import CSV{% endblock %}
+
+{% block topbar_actions %}
+<a href="/csv/history" class="btn-ghost"><i class="bi bi-clock-history me-1"></i> Import History</a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="cc-card">
+            <div class="cc-card-header"><h6>Upload SourceX CSV</h6></div>
+            <div class="cc-card-body">
+                <p style="font-size:13px; color:var(--cc-text-muted); margin-bottom:20px;">
+                    Upload the daily orders CSV exported from SourceX. The system will parse orders, map SKUs to blanks, and deduct stock automatically.
+                </p>
+                <form method="post" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <label class="form-label" style="font-size:13px; font-weight:600;">CSV File</label>
+                        <input type="file" name="csv_file" class="form-control" style="border-radius:8px;" accept=".csv" required>
+                    </div>
+                    <button type="submit" class="btn-cc"><i class="bi bi-upload me-1"></i> Import</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

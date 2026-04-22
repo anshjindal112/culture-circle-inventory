@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Restock Orders - Culture Circle{% endblock %}
+{% block page_title %}Restock Orders{% endblock %}
+
+{% block topbar_actions %}
+<a href="/restock/new" class="btn-cc btn-sm-cc"><i class="bi bi-plus me-1"></i> New Restock</a>
+{% endblock %}
+
+{% block content %}
+<div class="cc-card">
+    <div class="cc-card-header">
+        <h6>{{ orders | length }} restock order{{ 's' if orders | length != 1 else '' }}</h6>
+    </div>
+    {% if orders %}
+    <div class="table-responsive">
+        <table class="cc-table">
+            <thead>
+                <tr><th>Blank</th><th>Size</th><th>Qty</th><th>Status</th><th>Triggered</th><th>Expected</th><th>Actual</th><th class="text-end">Stock Now</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for o in orders %}
+                <tr>
+                    <td style="font-weight:500;">{{ o.blank_name }}</td>
+                    <td>{{ o.size }}</td>
+                    <td>{{ o.qty_ordered }}</td>
+                    <td>
+                        {% if o.status == 'received' %}<span class="badge-status badge-fulfilled">received</span>
+                        {% elif o.status == 'cancelled' %}<span class="badge-status badge-cancelled">cancelled</span>
+                        {% elif o.status == 'in_transit' %}<span class="badge-status badge-paid">in transit</span>
+                        {% else %}<span class="badge-status badge-pending">{{ o.status | replace('_', ' ') }}</span>{% endif %}
+                    </td>
+                    <td style="font-size:12px;">{{ o.date_triggered.strftime('%b %d') if o.date_triggered else '-' }}</td>
+                    <td style="font-size:12px;">{{ o.expected_delivery.strftime('%b %d') if o.expected_delivery else '-' }}</td>
+                    <td style="font-size:12px;">{{ o.actual_delivery.strftime('%b %d') if o.actual_delivery else '-' }}</td>
+                    <td class="text-end" style="font-weight:600;">{{ o.current_stock | int }}</td>
+                    <td>
+                        {% if o.status in ('in_production', 'in_transit') %}
+                        <a href="/restock/receive/{{ o.restock_id }}" class="btn-cc btn-sm-cc">Receive</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-arrow-repeat"></i>
+        <p>No restock orders yet. <a href="/restock/new">Create one</a>.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

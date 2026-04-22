@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}SKU Mappings - Culture Circle{% endblock %}
+{% block page_title %}SKU Mappings{% endblock %}
+
+{% block topbar_actions %}
+<a href="/blanks/mappings/add" class="btn-cc btn-sm-cc"><i class="bi bi-plus me-1"></i>Add Mapping</a>
+<a href="/blanks/bulk" class="btn-cc-outline btn-sm-cc">Bulk Import</a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .mapping-group {
+        border: 1px solid var(--cc-border);
+        border-radius: 10px;
+        overflow: hidden;
+        background: #fff;
+        transition: box-shadow 0.15s;
+    }
+    .mapping-group:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .mapping-group-header {
+        padding: 12px 16px;
+        background: #f8f9fa;
+        border-bottom: 1px solid var(--cc-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+    }
+    .mapping-group-header:hover { background: #f1f3f5; }
+    .mapping-group-body { display: none; }
+    .mapping-group.open .mapping-group-body { display: block; }
+    .mapping-group .chevron { transition: transform 0.2s; }
+    .mapping-group.open .chevron { transform: rotate(90deg); }
+    .product-row {
+        padding: 8px 16px;
+        font-size: 12px;
+        border-bottom: 1px solid #f8f9fa;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .product-row:last-child { border-bottom: none; }
+    .size-tag {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        background: #f1f3f5;
+        color: var(--cc-text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon purple"><i class="bi bi-link-45deg"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Total Mappings</div>
+                <div class="stat-value">{{ mapping_stats.total or 0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon blue"><i class="bi bi-bag"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Unique Products</div>
+                <div class="stat-value">{{ mapping_stats.unique_products or 0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon green"><i class="bi bi-tags"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Mapped Types</div>
+                <div class="stat-value">{{ mapping_stats.mapped_types or 0 }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search + Filter -->
+<div class="cc-card mb-4">
+    <div class="cc-card-body" style="padding:12px 20px;">
+        <form method="get" class="filter-bar">
+            <input type="text" name="q" value="{{ search }}" placeholder="Search product or blank name..." class="form-control form-control-sm" style="width:280px;">
+            <select name="blank" class="form-select form-select-sm" style="width:auto;">
+                <option value="">All Garment Types</option>
+                {% for gt in garment_types %}
+                <option value="{{ gt.garment_type }}" {% if blank_filter == gt.garment_type %}selected{% endif %}>{{ gt.garment_type }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn-cc btn-sm-cc">Search</button>
+            {% if search or blank_filter %}
+            <a href="/blanks/mappings" class="btn-ghost btn-sm-cc">Clear</a>
+            {% endif %}
+            <span style="font-size:12px; color:var(--cc-text-muted); margin-left:auto;">
+                {{ grouped | length }} group{{ 's' if grouped | length != 1 else '' }}
+            </span>
+        </form>
+    </div>
+</div>
+
+<!-- Grouped Mappings -->
+{% if grouped %}
+<div class="d-flex flex-column gap-3">
+    {% for key, group in grouped.items() %}
+    <div class="mapping-group" onclick="this.classList.toggle('open')">
+        <div class="mapping-group-header">
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi bi-chevron-right chevron" style="font-size:12px; color:var(--cc-text-muted);"></i>
+                <div>
+                    <span class="color-swatch" style="background:{{ _color_hex(group.color) }};"></span>
+                    <strong style="font-size:13px;">{{ group.garment_type or 'Unknown' }}</strong>
+                    <span style="color:var(--cc-text-muted); font-size:13px;"> &mdash; {{ group.color or 'Unknown' }}</span>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <span style="font-size:12px; color:var(--cc-text-muted);">
+                    {{ group.products | length }} product{{ 's' if group.products | length != 1 else '' }}
+                </span>
+                <span style="background:rgba(108,92,231,0.08); padding:3px 10px; border-radius:6px; font-size:11px; font-weight:600; color:var(--cc-accent);">
+                    {{ (group.products | map(attribute='size') | unique | list | length) }} size{{ 's' if (group.products | map(attribute='size') | unique | list | length) != 1 else '' }}
+                </span>
+            </div>
+        </div>
+        <div class="mapping-group-body">
+            {% set ns = namespace(current_product='') %}
+            {% for m in group.products %}
+            {% if m.product != ns.current_product %}
+            {% set ns.current_product = m.product %}
+            <div class="product-row" style="{% if not loop.first %}border-top:1px solid #f1f3f5;{% endif %} padding-top:10px;">
+                <div style="flex:1; font-weight:500; font-size:13px; color:var(--cc-text);">
+                    {{ m.product }}
+                    {% if m.brand %}<span style="color:var(--cc-text-muted); font-weight:400;"> ({{ m.brand }})</span>{% endif %}
+                </div>
+                <div class="d-flex gap-1 flex-wrap">
+                    {% for sibling in group.products if sibling.product == m.product %}
+                    <span class="size-tag">{{ sibling.size }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="cc-card">
+    <div class="empty-state">
+        <i class="bi bi-link-45deg"></i>
+        <p>No mappings found. {% if search or blank_filter %}<a href="/blanks/mappings">Clear filters</a>{% else %}<a href="/blanks/mappings/add">Add one</a> or <a href="/blanks/bulk">bulk import</a>{% endif %}.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Receive Restock - Culture Circle{% endblock %}
+{% block page_title %}Receive Restock{% endblock %}
+
+{% block topbar_actions %}
+<a href="/restock" class="btn-ghost"><i class="bi bi-arrow-left me-1"></i> Back to Restocks</a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="cc-card">
+            <div class="cc-card-header">
+                <h6>{{ order.blank_name }} ({{ order.size }})</h6>
+                <span style="font-size:13px; font-weight:600;">Ordered: {{ order.qty_ordered }} units</span>
+            </div>
+            <div class="cc-card-body">
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:600;">Qty Received</label>
+                        <input type="number" name="qty_received" class="form-control" style="border-radius:8px;" value="{{ order.qty_ordered }}" min="0" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" style="font-size:13px; font-weight:600;">Actual Delivery Date</label>
+                        <input type="date" name="actual_delivery" class="form-control" style="border-radius:8px;">
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn-cc" style="background:var(--cc-green);">
+                            <i class="bi bi-check-circle me-1"></i> Mark Received
+                        </button>
+                        <a href="/restock" class="btn-ghost">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

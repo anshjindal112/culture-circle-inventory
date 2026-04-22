@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Culture Circle{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --cc-dark: #0f0f0f;
+            --cc-darker: #0a0a0a;
+            --cc-accent: #6c5ce7;
+            --cc-accent-light: #a29bfe;
+            --cc-surface: #ffffff;
+            --cc-surface-hover: #f8f9fa;
+            --cc-border: #e9ecef;
+            --cc-text: #212529;
+            --cc-text-muted: #6c757d;
+            --cc-green: #00b894;
+            --cc-red: #e17055;
+            --cc-yellow: #fdcb6e;
+            --cc-blue: #0984e3;
+            --sidebar-width: 240px;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f6fa;
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        /* ── Sidebar ────────────────────────────────────── */
+        .sidebar {
+            position: fixed;
+            top: 0; left: 0; bottom: 0;
+            width: var(--sidebar-width);
+            background: var(--cc-dark);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            z-index: 1040;
+            transition: transform 0.3s;
+        }
+        .sidebar-brand {
+            padding: 24px 20px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .sidebar-brand h5 {
+            font-weight: 700;
+            font-size: 16px;
+            letter-spacing: 0.5px;
+            margin: 0;
+            color: #fff;
+        }
+        .sidebar-brand small {
+            color: rgba(255,255,255,0.4);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 0;
+            overflow-y: auto;
+        }
+        .sidebar-section {
+            padding: 8px 20px 4px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: rgba(255,255,255,0.3);
+            margin-top: 8px;
+        }
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            font-size: 13.5px;
+            font-weight: 500;
+            transition: all 0.15s;
+            border-left: 3px solid transparent;
+        }
+        .sidebar-link:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.05);
+        }
+        .sidebar-link.active {
+            color: #fff;
+            background: rgba(108,92,231,0.15);
+            border-left-color: var(--cc-accent);
+        }
+        .sidebar-link i {
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+        }
+        .sidebar-badge {
+            margin-left: auto;
+            background: var(--cc-red);
+            color: #fff;
+            font-size: 10px;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        /* ── Main content ───────────────────────────────── */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+        }
+
+        /* ── Top bar ────────────────────────────────────── */
+        .topbar {
+            background: #fff;
+            border-bottom: 1px solid var(--cc-border);
+            padding: 12px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 1030;
+        }
+        .topbar-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--cc-text);
+            margin: 0;
+        }
+        .topbar-actions { display: flex; gap: 8px; align-items: center; }
+
+        /* ── Page content ───────────────────────────────── */
+        .page-content { padding: 24px 28px; }
+
+        /* ── Cards ──────────────────────────────────────── */
+        .cc-card {
+            background: #fff;
+            border: 1px solid var(--cc-border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .cc-card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--cc-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .cc-card-header h6 {
+            font-weight: 700;
+            font-size: 14px;
+            margin: 0;
+            color: var(--cc-text);
+        }
+        .cc-card-body { padding: 20px; }
+
+        /* ── Stat cards ─────────────────────────────────── */
+        .stat-card {
+            background: #fff;
+            border: 1px solid var(--cc-border);
+            border-radius: 10px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: box-shadow 0.15s;
+        }
+        .stat-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .stat-icon {
+            width: 42px; height: 42px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+        }
+        .stat-icon.red { background: rgba(225,112,85,0.12); color: var(--cc-red); }
+        .stat-icon.yellow { background: rgba(253,203,110,0.2); color: #e17055; }
+        .stat-icon.green { background: rgba(0,184,148,0.12); color: var(--cc-green); }
+        .stat-icon.gray { background: rgba(108,117,125,0.1); color: var(--cc-text-muted); }
+        .stat-icon.blue { background: rgba(9,132,227,0.12); color: var(--cc-blue); }
+        .stat-icon.purple { background: rgba(108,92,231,0.12); color: var(--cc-accent); }
+        .stat-info .stat-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--cc-text-muted);
+            margin-bottom: 2px;
+        }
+        .stat-info .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--cc-text);
+            line-height: 1.1;
+        }
+
+        /* ── Tables ─────────────────────────────────────── */
+        .cc-table {
+            width: 100%;
+            font-size: 13px;
+        }
+        .cc-table thead th {
+            background: #f8f9fa;
+            padding: 10px 14px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--cc-text-muted);
+            font-weight: 600;
+            border-bottom: 1px solid var(--cc-border);
+            white-space: nowrap;
+        }
+        .cc-table tbody td {
+            padding: 10px 14px;
+            border-bottom: 1px solid #f1f3f5;
+            vertical-align: middle;
+        }
+        .cc-table tbody tr:hover { background: #f8f9fa; }
+        .cc-table tbody tr:last-child td { border-bottom: none; }
+
+        /* ── Badges ─────────────────────────────────────── */
+        .badge-status {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 6px;
+            text-transform: capitalize;
+        }
+        .badge-fulfilled { background: rgba(0,184,148,0.12); color: #00b894; }
+        .badge-unfulfilled { background: rgba(225,112,85,0.12); color: #e17055; }
+        .badge-partial { background: rgba(253,203,110,0.2); color: #d68910; }
+        .badge-paid { background: rgba(0,184,148,0.12); color: #00b894; }
+        .badge-pending { background: rgba(253,203,110,0.2); color: #d68910; }
+        .badge-refunded { background: rgba(108,117,125,0.12); color: #6c757d; }
+        .badge-cancelled { background: rgba(108,117,125,0.12); color: #6c757d; }
+        .badge-authorized { background: rgba(9,132,227,0.12); color: #0984e3; }
+
+        /* Status badges from old system */
+        .status-red { background: var(--cc-red); color: #fff; }
+        .status-yellow { background: var(--cc-yellow); color: #000; }
+        .status-green { background: var(--cc-green); color: #fff; }
+        .status-gray { background: #6c757d; color: #fff; }
+
+        /* ── Buttons ────────────────────────────────────── */
+        .btn-cc {
+            background: var(--cc-accent);
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.15s;
+        }
+        .btn-cc:hover { background: #5b4cdb; color: #fff; }
+        .btn-cc-outline {
+            background: transparent;
+            color: var(--cc-accent);
+            border: 1px solid var(--cc-accent);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.15s;
+        }
+        .btn-cc-outline:hover { background: var(--cc-accent); color: #fff; }
+        .btn-sm-cc {
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--cc-border);
+            color: var(--cc-text-muted);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+        .btn-ghost:hover { background: #f8f9fa; color: var(--cc-text); }
+
+        /* ── Staleness banner ───────────────────────────── */
+        .staleness-banner {
+            background: var(--cc-red);
+            color: #fff;
+            padding: 10px 28px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .staleness-banner a { color: #fff; text-decoration: underline; }
+
+        /* ── Misc ───────────────────────────────────────── */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--cc-text-muted);
+        }
+        .empty-state i { font-size: 48px; margin-bottom: 16px; display: block; opacity: 0.4; }
+        .empty-state p { font-size: 14px; }
+
+        .store-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .filter-bar select, .filter-bar input {
+            font-size: 13px;
+            border-radius: 8px;
+            border: 1px solid var(--cc-border);
+            padding: 6px 12px;
+        }
+
+        /* ── Responsive ─────────────────────────────────── */
+        .sidebar-toggle { display: none; }
+        @media (max-width: 991px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.show { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .sidebar-toggle {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 36px; height: 36px;
+                border: 1px solid var(--cc-border);
+                border-radius: 8px;
+                background: #fff;
+                cursor: pointer;
+                margin-right: 12px;
+            }
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.4);
+                z-index: 1039;
+            }
+            .sidebar.show ~ .sidebar-overlay { display: block; }
+        }
+
+        /* ── Pagination ─────────────────────────────────── */
+        .cc-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            margin-top: 20px;
+        }
+        .cc-pagination a, .cc-pagination span {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            text-decoration: none;
+            color: var(--cc-text-muted);
+            border: 1px solid var(--cc-border);
+        }
+        .cc-pagination a:hover { background: #f8f9fa; color: var(--cc-text); }
+        .cc-pagination .active {
+            background: var(--cc-accent);
+            color: #fff;
+            border-color: var(--cc-accent);
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <h5>Culture Circle</h5>
+            <small>Inventory Management</small>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="sidebar-section">Overview</div>
+            <a href="/" class="sidebar-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+                <i class="bi bi-grid-1x2"></i> Dashboard
+            </a>
+
+            <div class="sidebar-section">Orders</div>
+            <a href="/orders" class="sidebar-link {% if request.endpoint and request.endpoint.startswith('orders.') %}active{% endif %}">
+                <i class="bi bi-bag"></i> Shopify Orders
+                {% if request.endpoint == 'dashboard.index' and stats is defined and stats.get('unfulfilled_orders', 0) > 0 %}
+                <span class="sidebar-badge">{{ stats.unfulfilled_orders }}</span>
+                {% endif %}
+            </a>
+
+            <div class="sidebar-section">Inventory</div>
+            <a href="/blanks" class="sidebar-link {% if request.endpoint and request.endpoint.startswith('blanks.list') %}active{% endif %}">
+                <i class="bi bi-box-seam"></i> Blanks
+            </a>
+            <a href="/blanks/mappings" class="sidebar-link {% if request.endpoint and 'mapping' in (request.endpoint or '') %}active{% endif %}">
+                <i class="bi bi-link-45deg"></i> SKU Mappings
+            </a>
+            <a href="/restock" class="sidebar-link {% if request.endpoint and request.endpoint.startswith('restock.') %}active{% endif %}">
+                <i class="bi bi-arrow-repeat"></i> Restocks
+            </a>
+
+            <div class="sidebar-section">Import</div>
+            <a href="/csv/upload" class="sidebar-link {% if request.endpoint == 'csv_import.upload' %}active{% endif %}">
+                <i class="bi bi-upload"></i> Import CSV
+            </a>
+            <a href="/csv/history" class="sidebar-link {% if request.endpoint == 'csv_import.history' %}active{% endif %}">
+                <i class="bi bi-clock-history"></i> Import History
+            </a>
+            <a href="/blanks/bulk" class="sidebar-link {% if request.endpoint == 'blanks.bulk_import' %}active{% endif %}">
+                <i class="bi bi-file-earmark-arrow-up"></i> Bulk Import
+            </a>
+        </nav>
+    </aside>
+
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="document.getElementById('sidebar').classList.remove('show')"></div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        {% block staleness %}{% endblock %}
+
+        <div class="topbar">
+            <div class="d-flex align-items-center">
+                <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('show')">
+                    <i class="bi bi-list"></i>
+                </button>
+                <h1 class="topbar-title">{% block page_title %}Dashboard{% endblock %}</h1>
+            </div>
+            <div class="topbar-actions">
+                {% block topbar_actions %}{% endblock %}
+            </div>
+        </div>
+
+        <div class="page-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for cat, msg in messages %}
+                <div class="alert alert-{{ cat }} alert-dismissible fade show" style="border-radius:10px; font-size:13px; margin-bottom:16px;">
+                    {{ msg }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" style="font-size:10px;"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

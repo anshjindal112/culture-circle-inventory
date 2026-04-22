@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% block title %}Order {{ order.name }} - Culture Circle{% endblock %}
+{% block page_title %}Order {{ order.name }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('orders.list_orders') }}" class="btn-ghost">
+    <i class="bi bi-arrow-left me-1"></i> Back to Orders
+</a>
+<form method="post" action="{{ url_for('orders.refresh_order', order_id=order.id) }}" class="d-inline ms-2">
+    <button type="submit" class="btn-cc-outline btn-sm-cc">
+        <i class="bi bi-arrow-clockwise me-1"></i> Refresh from Shopify
+    </button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Left column: Order details -->
+    <div class="col-lg-8">
+        <!-- Order Summary -->
+        <div class="cc-card mb-4">
+            <div class="cc-card-header">
+                <h6>Order Summary</h6>
+                <div class="d-flex gap-2">
+                    <span class="badge-status badge-{{ order.financial_status }}">{{ order.financial_status }}</span>
+                    <span class="badge-status badge-{{ order.fulfillment_status }}">{{ order.fulfillment_status }}</span>
+                </div>
+            </div>
+            <div class="cc-card-body">
+                <div class="row g-3" style="font-size:13px;">
+                    <div class="col-6 col-md-3">
+                        <div style="color:var(--cc-text-muted); font-size:11px; text-transform:uppercase; margin-bottom:4px;">Store</div>
+                        <span style="background:rgba(108,92,231,0.08); padding:2px 8px; border-radius:4px; color:var(--cc-accent); font-weight:500;">
+                            {{ order.store_prefix | replace('_', ' ') | title }}
+                        </span>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div style="color:var(--cc-text-muted); font-size:11px; text-transform:uppercase; margin-bottom:4px;">Order Date</div>
+                        <strong>{{ order.shopify_created_at.strftime('%b %d, %Y %I:%M %p') if order.shopify_created_at else '-' }}</strong>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div style="color:var(--cc-text-muted); font-size:11px; text-transform:uppercase; margin-bottom:4px;">Total</div>
+                        <strong style="font-size:18px;">{{ order.currency }} {{ "%.2f" | format(order.total_price | float) }}</strong>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div style="color:var(--cc-text-muted); font-size:11px; text-transform:uppercase; margin-bottom:4px;">Last Synced</div>
+                        <strong>{{ order.synced_at.strftime('%b %d, %H:%M') if order.synced_at else '-' }}</strong>
+                    </div>
+                </div>
+                {% if order.note %}
+                <div class="mt-3 p-3" style="background:#f8f9fa; border-radius:8px; font-size:13px;">
+                    <div style="color:var(--cc-text-muted); font-size:11px; text-transform:uppercase; margin-bottom:4px;">Note</div>
+                    {{ order.note }}
+                </div>
+                {% endif %}
+                {% if order.tags %}
+                <div class="mt-2" style="font-size:12px;">
+                    <span style="color:var(--cc-text-muted);">Tags:</span>
+                    {% for tag in order.tags.split(',') %}
+                    <span style="background:#f1f3f5; padding:2px 8px; border-radius:4px; margin:2px;">{{ tag.strip() }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Line Items -->
+        <div class="cc-card mb-4">
+            <div class="cc-card-header">
+                <h6>Items ({{ items | length }})</h6>
+            </div>
+            <div class="table-responsive">
+                <table class="cc-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>SKU</th>
+                            <th>Variant</th>
+                            <th class="text-center">Qty</th>
+                            <th class="text-end">Price</th>
+                            <th class="text-end">Discount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td style="font-weight:500;">{{ item.title }}</td>
+                            <td style="font-size:12px; color:var(--cc-text-muted);">{{ item.sku or '-' }}</td>
+                            <td style="font-size:12px;">{{ item.variant_title or '-' }}</td>
+                            <td class="text-center">{{ item.quantity }}</td>
+                            <td class="text-end">{{ "%.2f" | format(item.price | float) }}</td>
+                            <td class="text-end" style="color:var(--cc-red);">
+                                {% if item.total_discount and item.total_discount | float > 0 %}
+                                -{{ "%.2f" | format(item.total_discount | float) }}
+                                {% else %}-{% endif %}
+                            </td>
+                            <td>
+                                {% if item.fulfillment_status %}
+                                <span class="badge-status badge-{{ item.fulfillment_status }}">{{ item.fulfillment_status }}</span>
+                                {% else %}
+                                <span class="badge-status badge-unfulfilled">unfulfilled</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <!-- Price breakdown -->
+            <div class="cc-card-body" style="border-top:1px solid var(--cc-border); padding-top:16px;">
+                <div class="row justify-content-end">
+                    <div class="col-md-5">
+                        <table style="width:100%; font-size:13px;">
+                            <tr>
+                                <td style="color:var(--cc-text-muted); padding:4px 0;">Subtotal</td>
+                                <td class="text-end" style="padding:4px 0;">{{ order.currency }} {{ "%.2f" | format(order.subtotal_price | float) }}</td>
+                            </tr>
+                            {% if order.total_discounts and order.total_discounts | float > 0 %}
+                            <tr>
+                                <td style="color:var(--cc-text-muted); padding:4px 0;">Discounts</td>
+                                <td class="text-end" style="padding:4px 0; color:var(--cc-red);">-{{ order.currency }} {{ "%.2f" | format(order.total_discounts | float) }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <td style="color:var(--cc-text-muted); padding:4px 0;">Tax</td>
+                                <td class="text-end" style="padding:4px 0;">{{ order.currency }} {{ "%.2f" | format(order.total_tax | float) }}</td>
+                            </tr>
+                            <tr style="border-top:1px solid var(--cc-border);">
+                                <td style="font-weight:700; padding:8px 0;">Total</td>
+                                <td class="text-end" style="font-weight:700; font-size:16px; padding:8px 0;">{{ order.currency }} {{ "%.2f" | format(order.total_price | float) }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fulfillments -->
+        {% if fulfillments %}
+        <div class="cc-card mb-4">
+            <div class="cc-card-header">
+                <h6>Fulfillments ({{ fulfillments | length }})</h6>
+            </div>
+            <div class="cc-card-body">
+                {% for f in fulfillments %}
+                <div class="p-3 mb-2" style="background:#f8f9fa; border-radius:8px;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="badge-status badge-fulfilled">{{ f.status }}</span>
+                        <span style="font-size:12px; color:var(--cc-text-muted);">{{ f.created_at.strftime('%b %d, %Y %I:%M %p') if f.created_at else '' }}</span>
+                    </div>
+                    {% if f.tracking_number %}
+                    <div style="font-size:13px;">
+                        <strong>Tracking:</strong> {{ f.tracking_number }}
+                        {% if f.tracking_company %} ({{ f.tracking_company }}){% endif %}
+                        {% if f.tracking_url %}<a href="{{ f.tracking_url }}" target="_blank" class="ms-2"><i class="bi bi-box-arrow-up-right"></i> Track</a>{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Right column: Customer & Actions -->
+    <div class="col-lg-4">
+        <!-- Customer Info -->
+        <div class="cc-card mb-4">
+            <div class="cc-card-header"><h6>Customer</h6></div>
+            <div class="cc-card-body" style="font-size:13px;">
+                <div style="font-weight:600; font-size:15px; margin-bottom:8px;">
+                    {{ order.customer_first_name }} {{ order.customer_last_name }}
+                </div>
+                {% if order.customer_email %}
+                <div class="mb-1"><i class="bi bi-envelope me-2" style="color:var(--cc-text-muted);"></i>{{ order.customer_email }}</div>
+                {% endif %}
+                {% if order.customer_phone or order.phone %}
+                <div class="mb-1"><i class="bi bi-telephone me-2" style="color:var(--cc-text-muted);"></i>{{ order.customer_phone or order.phone }}</div>
+                {% endif %}
+                {% if order.customer_orders_count %}
+                <div class="mt-2 pt-2" style="border-top:1px solid #f1f3f5; font-size:12px; color:var(--cc-text-muted);">
+                    {{ order.customer_orders_count }} orders &middot; {{ order.currency }} {{ "%.2f" | format(order.customer_total_spent | float) }} total spent
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Shipping Address -->
+        {% if order.shipping_address1 %}
+        <div class="cc-card mb-4">
+            <div class="cc-card-header"><h6>Shipping Address</h6></div>
+            <div class="cc-card-body" style="font-size:13px; line-height:1.6;">
+                <strong>{{ order.shipping_name }}</strong><br>
+                {{ order.shipping_address1 }}<br>
+                {% if order.shipping_address2 %}{{ order.shipping_address2 }}<br>{% endif %}
+                {{ order.shipping_city }}{% if order.shipping_province %}, {{ order.shipping_province }}{% endif %} {{ order.shipping_zip }}<br>
+                {{ order.shipping_country }}
+                {% if order.shipping_phone %}
+                <div class="mt-1"><i class="bi bi-telephone me-1"></i>{{ order.shipping_phone }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Billing Address -->
+        {% if order.billing_address1 %}
+        <div class="cc-card mb-4">
+            <div class="cc-card-header"><h6>Billing Address</h6></div>
+            <div class="cc-card-body" style="font-size:13px; line-height:1.6;">
+                <strong>{{ order.billing_name }}</strong><br>
+                {{ order.billing_address1 }}<br>
+                {% if order.billing_address2 %}{{ order.billing_address2 }}<br>{% endif %}
+                {{ order.billing_city }}{% if order.billing_province %}, {{ order.billing_province }}{% endif %} {{ order.billing_zip }}<br>
+                {{ order.billing_country }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Actions -->
+        <div class="cc-card mb-4">
+            <div class="cc-card-header"><h6>Actions</h6></div>
+            <div class="cc-card-body">
+                {% if order.fulfillment_status == 'unfulfilled' or order.fulfillment_status == 'partial' %}
+                <!-- Fulfill -->
+                <form method="post" action="{{ url_for('orders.update_status', order_id=order.id) }}" class="mb-3">
+                    <input type="hidden" name="action" value="fulfill">
+                    <div class="mb-2">
+                        <input type="text" name="tracking_number" placeholder="Tracking number (optional)" class="form-control form-control-sm" style="border-radius:8px; font-size:13px;">
+                    </div>
+                    <div class="mb-2">
+                        <input type="text" name="tracking_company" placeholder="Carrier (optional)" class="form-control form-control-sm" style="border-radius:8px; font-size:13px;">
+                    </div>
+                    <div class="mb-2">
+                        <input type="text" name="tracking_url" placeholder="Tracking URL (optional)" class="form-control form-control-sm" style="border-radius:8px; font-size:13px;">
+                    </div>
+                    <button type="submit" class="btn-cc w-100" onclick="return confirm('Mark this order as fulfilled on Shopify?')">
+                        <i class="bi bi-check-circle me-1"></i> Fulfill Order
+                    </button>
+                </form>
+                {% endif %}
+
+                {% if not order.cancelled_at and not order.closed_at %}
+                <!-- Cancel -->
+                <form method="post" action="{{ url_for('orders.update_status', order_id=order.id) }}" class="mb-2">
+                    <input type="hidden" name="action" value="cancel">
+                    <select name="cancel_reason" class="form-select form-select-sm mb-2" style="border-radius:8px; font-size:13px;">
+                        <option value="customer">Customer request</option>
+                        <option value="fraud">Fraud</option>
+                        <option value="inventory">Inventory</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <button type="submit" class="btn btn-outline-danger btn-sm w-100" style="border-radius:8px; font-size:13px;" onclick="return confirm('Cancel this order on Shopify? This cannot be undone.')">
+                        <i class="bi bi-x-circle me-1"></i> Cancel Order
+                    </button>
+                </form>
+                {% endif %}
+
+                {% if not order.closed_at and not order.cancelled_at %}
+                <form method="post" action="{{ url_for('orders.update_status', order_id=order.id) }}" class="mb-2">
+                    <input type="hidden" name="action" value="close">
+                    <button type="submit" class="btn-ghost w-100" onclick="return confirm('Close this order on Shopify?')">
+                        <i class="bi bi-archive me-1"></i> Close Order
+                    </button>
+                </form>
+                {% endif %}
+
+                {% if order.closed_at and not order.cancelled_at %}
+                <form method="post" action="{{ url_for('orders.update_status', order_id=order.id) }}">
+                    <input type="hidden" name="action" value="reopen">
+                    <button type="submit" class="btn-cc-outline w-100">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Reopen Order
+                    </button>
+                </form>
+                {% endif %}
+
+                <!-- Update Note -->
+                <hr style="margin:16px 0; border-color:#f1f3f5;">
+                <form method="post" action="{{ url_for('orders.update_status', order_id=order.id) }}">
+                    <input type="hidden" name="action" value="update_note">
+                    <div class="mb-2">
+                        <textarea name="note" rows="2" class="form-control form-control-sm" style="border-radius:8px; font-size:13px;" placeholder="Order note...">{{ order.note or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn-ghost w-100 btn-sm-cc">
+                        <i class="bi bi-pencil me-1"></i> Update Note on Shopify
+                    </button>
+                </form>
+
+                <!-- Update Tags -->
+                <form method="post" action="{{ url_for('orders.update_status', order_id=order.id) }}" class="mt-2">
+                    <input type="hidden" name="action" value="update_tags">
+                    <div class="mb-2">
+                        <input type="text" name="tags" value="{{ order.tags or '' }}" class="form-control form-control-sm" style="border-radius:8px; font-size:13px;" placeholder="Tags (comma separated)">
+                    </div>
+                    <button type="submit" class="btn-ghost w-100 btn-sm-cc">
+                        <i class="bi bi-tags me-1"></i> Update Tags on Shopify
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

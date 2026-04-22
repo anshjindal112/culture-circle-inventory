@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% block title %}Blanks - Culture Circle{% endblock %}
+{% block page_title %}Blank Inventory{% endblock %}
+
+{% block topbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <!-- View toggle -->
+    <div class="btn-group" style="border:1px solid var(--cc-border); border-radius:8px; overflow:hidden;">
+        <a href="?view=grid&type={{ type_filter }}&stock={{ stock_filter }}"
+           class="btn btn-sm {% if view == 'grid' %}btn-dark{% else %}btn-light{% endif %}" style="border:none; font-size:12px; padding:5px 12px;">
+            <i class="bi bi-grid-3x3-gap me-1"></i>Grid
+        </a>
+        <a href="?view=table&type={{ type_filter }}&stock={{ stock_filter }}"
+           class="btn btn-sm {% if view == 'table' %}btn-dark{% else %}btn-light{% endif %}" style="border:none; font-size:12px; padding:5px 12px;">
+            <i class="bi bi-list-ul me-1"></i>Table
+        </a>
+    </div>
+    <a href="/blanks/add" class="btn-cc btn-sm-cc"><i class="bi bi-plus me-1"></i>Add Blank</a>
+    <a href="/blanks/bulk" class="btn-cc-outline btn-sm-cc">Bulk Import</a>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .size-cell {
+        width: 52px; height: 38px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 12px; font-weight: 600;
+        border-radius: 6px;
+        cursor: default;
+        transition: transform 0.1s;
+    }
+    .size-cell:hover { transform: scale(1.08); }
+    .size-cell a { color: inherit; text-decoration: none; display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
+    .size-cell.in-stock { background: rgba(0,184,148,0.12); color: #00b894; }
+    .size-cell.low-stock { background: rgba(253,203,110,0.2); color: #d68910; }
+    .size-cell.no-stock { background: rgba(225,112,85,0.08); color: #ccc; }
+    .size-header {
+        width: 52px; text-align: center;
+        font-size: 10px; text-transform: uppercase;
+        letter-spacing: 0.5px; color: var(--cc-text-muted);
+        font-weight: 600; padding-bottom: 6px;
+    }
+    .color-swatch {
+        width: 14px; height: 14px; border-radius: 50%;
+        display: inline-block; border: 1.5px solid rgba(0,0,0,0.1);
+        vertical-align: middle; margin-right: 6px;
+    }
+    .garment-card { transition: box-shadow 0.15s; }
+    .garment-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+    .type-bar {
+        height: 6px; border-radius: 3px; background: #f1f3f5;
+        overflow: hidden; margin-top: 4px;
+    }
+    .type-bar-fill { height: 100%; border-radius: 3px; background: var(--cc-accent); }
+    .stock-breakdown {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 12px;
+    }
+    .stock-chip {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px; border-radius: 8px;
+        background: #f8f9fa; border: 1px solid #f1f3f5;
+        font-size: 13px;
+    }
+    .stock-chip .stock-val { font-weight: 700; font-size: 15px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-xl">
+        <div class="stat-card">
+            <div class="stat-icon purple"><i class="bi bi-box-seam"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Total SKUs</div>
+                <div class="stat-value">{{ stats.total_skus }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl">
+        <div class="stat-card">
+            <div class="stat-icon blue"><i class="bi bi-stack"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Total Stock</div>
+                <div class="stat-value">{{ stats.total_stock | int }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl">
+        <div class="stat-card">
+            <div class="stat-icon green"><i class="bi bi-check-circle"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">In Stock</div>
+                <div class="stat-value">{{ stats.in_stock_skus }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl">
+        <div class="stat-card">
+            <div class="stat-icon red"><i class="bi bi-x-circle"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Out of Stock</div>
+                <div class="stat-value">{{ stats.out_of_stock_skus }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl">
+        <div class="stat-card">
+            <div class="stat-icon gray"><i class="bi bi-tags"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Types / Colors</div>
+                <div class="stat-value">{{ stats.total_types }} / {{ stats.total_colors }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stock by Garment Type - horizontal bar overview -->
+<div class="cc-card mb-4">
+    <div class="cc-card-header">
+        <h6>Stock by Garment Type</h6>
+    </div>
+    <div class="cc-card-body" style="padding:16px 20px;">
+        {% set max_stock = type_stock[0].stock | int if type_stock and type_stock[0].stock else 1 %}
+        <div class="row g-2">
+            {% for ts in type_stock %}
+            <div class="col-md-6 col-xl-4">
+                <div class="d-flex justify-content-between align-items-center" style="font-size:12px;">
+                    <span style="font-weight:500; {% if ts.stock | int == 0 %}color:var(--cc-text-muted);{% endif %}">{{ ts.garment_type }}</span>
+                    <span style="font-weight:700; {% if ts.stock | int > 0 %}color:var(--cc-accent);{% else %}color:#ccc;{% endif %}">{{ ts.stock | int }}</span>
+                </div>
+                <div class="type-bar">
+                    <div class="type-bar-fill" style="width: {{ ((ts.stock | int) / max_stock * 100) | round(1) }}%;
+                        {% if ts.stock | int == 0 %}background:#e9ecef;{% endif %}"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="cc-card mb-4">
+    <div class="cc-card-body" style="padding:12px 20px;">
+        <form method="get" class="filter-bar">
+            <input type="hidden" name="view" value="{{ view }}">
+            <select name="type" class="form-select form-select-sm" style="width:auto;">
+                <option value="">All Garment Types</option>
+                {% for gt in garment_types %}
+                <option value="{{ gt.garment_type }}" {% if type_filter == gt.garment_type %}selected{% endif %}>{{ gt.garment_type }}</option>
+                {% endfor %}
+            </select>
+            <select name="stock" class="form-select form-select-sm" style="width:auto;">
+                <option value="">All Stock</option>
+                <option value="in_stock" {% if stock_filter == 'in_stock' %}selected{% endif %}>In Stock Only</option>
+                <option value="out_of_stock" {% if stock_filter == 'out_of_stock' %}selected{% endif %}>Out of Stock Only</option>
+            </select>
+            <button type="submit" class="btn-cc btn-sm-cc">Filter</button>
+            {% if type_filter or stock_filter %}
+            <a href="/blanks?view={{ view }}" class="btn-ghost btn-sm-cc">Clear</a>
+            {% endif %}
+            <span style="font-size:12px; color:var(--cc-text-muted); margin-left:auto;">
+                <a href="/blanks/bulk-edit" class="btn-ghost btn-sm-cc"><i class="bi bi-pencil-square me-1"></i>Bulk Edit</a>
+            </span>
+        </form>
+    </div>
+</div>
+
+{% if view == 'grid' %}
+<!-- ═══════════ GRID VIEW ═══════════ -->
+{% for gtype, data in grouped.items() %}
+<div class="cc-card garment-card mb-4">
+    <div class="cc-card-header">
+        <div>
+            <h6 style="margin-bottom:2px;">{{ gtype }}</h6>
+            <span style="font-size:11px; color:var(--cc-text-muted);">
+                {{ data.colors | length }} color{{ 's' if data.colors | length != 1 else '' }} &middot;
+                {{ data.total_skus }} SKU{{ 's' if data.total_skus != 1 else '' }}
+            </span>
+        </div>
+        <div class="text-end">
+            <div style="font-size:22px; font-weight:700; {% if data.total_stock > 0 %}color:var(--cc-accent);{% else %}color:#ddd;{% endif %}">
+                {{ data.total_stock }}
+            </div>
+            <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--cc-text-muted);">total units</div>
+        </div>
+    </div>
+    <div class="cc-card-body" style="padding:16px 20px;">
+        <!-- Size matrix header -->
+        <div class="d-flex align-items-start mb-1">
+            <div style="width:140px; min-width:140px;"></div>
+            <div class="d-flex gap-1">
+                {% for s in size_order %}
+                <div class="size-header">{{ s }}</div>
+                {% endfor %}
+                <div class="size-header" style="width:60px;">Total</div>
+            </div>
+        </div>
+
+        {% for color, cdata in data.colors.items() %}
+        <div class="d-flex align-items-center mb-2" style="{% if not loop.last %}border-bottom:1px solid #f8f9fa; padding-bottom:8px;{% endif %}">
+            <!-- Color label -->
+            <div style="width:140px; min-width:140px; display:flex; align-items:center; font-size:13px; font-weight:500;">
+                <span class="color-swatch" style="background:{{ _color_hex(color) }};"></span>
+                {{ color | title }}
+            </div>
+            <!-- Size cells -->
+            <div class="d-flex gap-1 align-items-center">
+                {% for s in size_order %}
+                {% set cell = cdata.sizes.get(s) %}
+                {% if cell %}
+                <div class="size-cell {% if cell.stock > 10 %}in-stock{% elif cell.stock > 0 %}low-stock{% else %}no-stock{% endif %}">
+                    <a href="/blanks/stock/{{ cell.blank_id }}">{{ cell.stock }}</a>
+                </div>
+                {% else %}
+                <div class="size-cell no-stock" style="opacity:0.3;">-</div>
+                {% endif %}
+                {% endfor %}
+                <!-- Row total -->
+                <div style="width:60px; text-align:center; font-size:13px; font-weight:700;
+                    {% if cdata.total_stock > 0 %}color:var(--cc-text);{% else %}color:#ddd;{% endif %}">
+                    {{ cdata.total_stock }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+
+{% if not grouped %}
+<div class="cc-card">
+    <div class="empty-state">
+        <i class="bi bi-box"></i>
+        <p>No blanks match your filters. <a href="/blanks">Clear filters</a></p>
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+<!-- ═══════════ TABLE VIEW ═══════════ -->
+<div class="cc-card">
+    <div class="cc-card-header">
+        <h6>{{ blanks | length }} blank{{ 's' if blanks | length != 1 else '' }}</h6>
+    </div>
+    {% if blanks %}
+    <div class="table-responsive">
+        <table class="cc-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Color</th>
+                    <th>Size</th>
+                    <th class="text-end">Stock</th>
+                    <th class="text-end">Reorder</th>
+                    <th class="text-end">Lead</th>
+                    <th>SKUs</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in blanks %}
+                <tr>
+                    <td style="font-weight:500;">{{ b.garment_type or b.blank_name }}</td>
+                    <td>
+                        <span class="color-swatch" style="background:{{ _color_hex(b.color) }};"></span>
+                        {{ b.color or '-' }}
+                    </td>
+                    <td>{{ b.size }}</td>
+                    <td class="text-end">
+                        <span style="font-weight:600; padding:2px 8px; border-radius:4px; font-size:12px;
+                            {% if b.current_stock | int > 10 %}background:rgba(0,184,148,0.1); color:#00b894;
+                            {% elif b.current_stock | int > 0 %}background:rgba(253,203,110,0.2); color:#d68910;
+                            {% else %}color:#ccc;{% endif %}">
+                            {{ b.current_stock | int }}
+                        </span>
+                    </td>
+                    <td class="text-end" style="color:var(--cc-text-muted);">{{ b.reorder_level or 'auto' }}</td>
+                    <td class="text-end">{{ b.lead_time_days }}d</td>
+                    <td style="color:var(--cc-text-muted);">{{ b.sku_count }}</td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            <a href="/blanks/edit/{{ b.blank_id }}" class="btn-ghost btn-sm-cc">Edit</a>
+                            <a href="/blanks/stock/{{ b.blank_id }}" class="btn-ghost btn-sm-cc" style="color:var(--cc-accent);">Stock</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-box"></i>
+        <p>No blanks yet. <a href="/blanks/add">Add your first blank</a> or <a href="/blanks/bulk">bulk import</a>.</p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

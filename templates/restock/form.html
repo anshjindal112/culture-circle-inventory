@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}New Restock - Culture Circle{% endblock %}
+{% block page_title %}New Restock Order{% endblock %}
+
+{% block topbar_actions %}
+<a href="/restock" class="btn-ghost"><i class="bi bi-arrow-left me-1"></i> Back to Restocks</a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="cc-card">
+            <div class="cc-card-body">
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size:13px; font-weight:600;">Blank Type *</label>
+                        <select name="blank_id" class="form-select" style="border-radius:8px;" required>
+                            <option value="">-- Select --</option>
+                            {% for b in blanks %}
+                            <option value="{{ b.blank_id }}" {% if pre_blank == b.blank_id | string %}selected{% endif %}>
+                                {{ b.blank_name }} ({{ b.size }}) - Stock: {{ b.current_stock | int }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" style="font-size:13px; font-weight:600;">Quantity *</label>
+                            <input type="number" name="qty_ordered" class="form-control" style="border-radius:8px;" min="1" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" style="font-size:13px; font-weight:600;">Expected Delivery</label>
+                            <input type="date" name="expected_delivery" class="form-control" style="border-radius:8px;">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" style="font-size:13px; font-weight:600;">Notes</label>
+                        <input type="text" name="notes" class="form-control" style="border-radius:8px;">
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn-cc">Create Order</button>
+                        <a href="/restock" class="btn-ghost">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

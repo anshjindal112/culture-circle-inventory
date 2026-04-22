@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Shopify Orders - Culture Circle{% endblock %}
+{% block page_title %}Shopify Orders{% endblock %}
+
+{% block topbar_actions %}
+<form method="post" action="{{ url_for('orders.sync_orders') }}" class="d-inline">
+    <button type="submit" class="btn-cc">
+        <i class="bi bi-arrow-clockwise me-1"></i> Sync All Stores
+    </button>
+</form>
+{% endblock %}
+
+{% block content %}
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3 col-xl">
+        <div class="stat-card">
+            <div class="stat-icon blue"><i class="bi bi-bag"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Total Orders</div>
+                <div class="stat-value">{{ stats.total_orders or 0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="stat-card">
+            <div class="stat-icon red"><i class="bi bi-exclamation-circle"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Unfulfilled</div>
+                <div class="stat-value">{{ stats.unfulfilled or 0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="stat-card">
+            <div class="stat-icon green"><i class="bi bi-check-circle"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Fulfilled</div>
+                <div class="stat-value">{{ stats.fulfilled or 0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="stat-card">
+            <div class="stat-icon yellow"><i class="bi bi-clock"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Partial</div>
+                <div class="stat-value">{{ stats.partial or 0 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl">
+        <div class="stat-card">
+            <div class="stat-icon purple"><i class="bi bi-shop"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Stores</div>
+                <div class="stat-value">{{ stats.store_count or 0 }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Store Connection Status -->
+{% if configured_stores %}
+<div class="cc-card mb-4">
+    <div class="cc-card-header">
+        <h6>Store Connections ({{ configured_stores | length }})</h6>
+        <span style="font-size:12px; color:var(--cc-text-muted);">
+            {{ configured_stores | selectattr('has_permission') | list | length }} connected,
+            {{ configured_stores | rejectattr('has_permission') | list | length }} need authorization
+        </span>
+    </div>
+    <div class="cc-card-body" style="padding:14px 20px;">
+        <div class="d-flex flex-wrap gap-2">
+            {% for s in configured_stores %}
+            <div style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:500;
+                {% if s.has_permission and s.order_count > 0 %}background:rgba(0,184,148,0.08); border:1px solid rgba(0,184,148,0.2); color:#00b894;
+                {% elif s.has_permission %}background:rgba(9,132,227,0.08); border:1px solid rgba(9,132,227,0.2); color:#0984e3;
+                {% else %}background:rgba(225,112,85,0.08); border:1px solid rgba(225,112,85,0.2); color:#e17055;{% endif %}">
+                <span style="width:7px; height:7px; border-radius:50%; display:inline-block;
+                    {% if s.has_permission and s.order_count > 0 %}background:#00b894;
+                    {% elif s.has_permission %}background:#0984e3;
+                    {% else %}background:#e17055;{% endif %}"></span>
+                {{ s.name }}
+                {% if s.has_permission %}
+                <span style="opacity:0.6;">({{ s.order_count }})</span>
+                {% else %}
+                <span style="opacity:0.6;">403</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% set blocked = configured_stores | rejectattr('has_permission') | list %}
+        {% if blocked | length > 0 %}
+        <div class="mt-3 p-2" style="background:rgba(225,112,85,0.06); border-radius:6px; font-size:12px; color:var(--cc-red);">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <strong>{{ blocked | length }} store(s)</strong> returned 403 Forbidden. Their Shopify app needs the <code>read_orders</code> scope.
+            Go to each store's <strong>Shopify Admin > Settings > Apps > Develop apps</strong> and add Orders permissions, then regenerate the access token.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Last sync info -->
+{% if last_sync %}
+<div class="d-flex align-items-center gap-2 mb-3" style="font-size:12px; color:var(--cc-text-muted);">
+    <i class="bi bi-clock"></i>
+    Last synced: {{ last_sync.completed_at.strftime('%b %d, %Y at %I:%M %p') if last_sync.completed_at else 'In progress...' }}
+    &mdash; {{ last_sync.orders_fetched }} fetched, {{ last_sync.orders_new }} new, {{ last_sync.orders_updated }} updated
+    {% if last_sync.errors %}
+    <span class="text-danger ms-2">| {{ last_sync.errors | truncate(200) }}</span>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Filters -->
+<div class="cc-card mb-4">
+    <div class="cc-card-body" style="padding:14px 20px;">
+        <form method="get" class="filter-bar">
+            <select name="store" class="form-select form-select-sm" style="width:auto;">
+                <option value="">All Stores</option>
+                {% for s in stores %}
+                <option value="{{ s.store_prefix }}" {% if store_filter == s.store_prefix %}selected{% endif %}>{{ s.store_prefix | replace('_', ' ') | title }}</option>
+                {% endfor %}
+            </select>
+            <select name="status" class="form-select form-select-sm" style="width:auto;">
+                <option value="">All Payment Status</option>
+                <option value="paid" {% if status_filter == 'paid' %}selected{% endif %}>Paid</option>
+                <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                <option value="authorized" {% if status_filter == 'authorized' %}selected{% endif %}>Authorized</option>
+                <option value="refunded" {% if status_filter == 'refunded' %}selected{% endif %}>Refunded</option>
+                <option value="partially_refunded" {% if status_filter == 'partially_refunded' %}selected{% endif %}>Partially Refunded</option>
+            </select>
+            <select name="fulfillment" class="form-select form-select-sm" style="width:auto;">
+                <option value="">All Fulfillment</option>
+                <option value="unfulfilled" {% if fulfillment_filter == 'unfulfilled' %}selected{% endif %}>Unfulfilled</option>
+                <option value="fulfilled" {% if fulfillment_filter == 'fulfilled' %}selected{% endif %}>Fulfilled</option>
+                <option value="partial" {% if fulfillment_filter == 'partial' %}selected{% endif %}>Partial</option>
+            </select>
+            <input type="text" name="q" value="{{ search }}" placeholder="Search name, email, phone..." class="form-control form-control-sm" style="width:220px;">
+            <button type="submit" class="btn-cc btn-sm-cc">Filter</button>
+            {% if store_filter or status_filter or fulfillment_filter or search %}
+            <a href="{{ url_for('orders.list_orders') }}" class="btn-ghost btn-sm-cc">Clear</a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Orders Table -->
+<div class="cc-card">
+    <div class="cc-card-header">
+        <h6>
+            {% if total_count > 0 %}
+                {{ total_count }} order{{ 's' if total_count != 1 else '' }}
+            {% else %}
+                No orders found
+            {% endif %}
+        </h6>
+        {% if store_filter %}
+        <form method="post" action="{{ url_for('orders.sync_orders') }}" class="d-inline">
+            <input type="hidden" name="store" value="{{ store_filter }}">
+            <button type="submit" class="btn-ghost btn-sm-cc">
+                <i class="bi bi-arrow-clockwise me-1"></i> Sync {{ store_filter | replace('_', ' ') | title }}
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    {% if orders %}
+    <div class="table-responsive">
+        <table class="cc-table">
+            <thead>
+                <tr>
+                    <th>Order</th>
+                    <th>Store</th>
+                    <th>Customer</th>
+                    <th>Contact</th>
+                    <th>Items</th>
+                    <th class="text-end">Total</th>
+                    <th>Payment</th>
+                    <th>Fulfillment</th>
+                    <th>Date</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in orders %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('orders.order_detail', order_id=o.id) }}" style="font-weight:600; color:var(--cc-accent); text-decoration:none;">
+                            {{ o.name or ('#' ~ o.order_number) }}
+                        </a>
+                    </td>
+                    <td>
+                        <span style="font-size:12px; background:rgba(108,92,231,0.08); padding:2px 8px; border-radius:4px; color:var(--cc-accent); font-weight:500;">
+                            {{ o.store_prefix | replace('_', ' ') | title }}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="font-weight:500;">{{ o.customer_first_name }} {{ o.customer_last_name }}</div>
+                        {% if o.shipping_city %}
+                        <div style="font-size:11px; color:var(--cc-text-muted);">{{ o.shipping_city }}{% if o.shipping_province %}, {{ o.shipping_province }}{% endif %}</div>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:12px;">
+                        {% if o.email %}<div><i class="bi bi-envelope me-1" style="font-size:10px;"></i>{{ o.email }}</div>{% endif %}
+                        {% if o.phone or o.customer_phone %}<div><i class="bi bi-telephone me-1" style="font-size:10px;"></i>{{ o.phone or o.customer_phone }}</div>{% endif %}
+                    </td>
+                    <td class="text-center">{{ o.item_count or 0 }}</td>
+                    <td class="text-end" style="font-weight:600;">{{ o.currency }} {{ "%.2f" | format(o.total_price | float) }}</td>
+                    <td><span class="badge-status badge-{{ o.financial_status }}">{{ o.financial_status }}</span></td>
+                    <td><span class="badge-status badge-{{ o.fulfillment_status }}">{{ o.fulfillment_status }}</span></td>
+                    <td style="font-size:12px; color:var(--cc-text-muted); white-space:nowrap;">
+                        {{ o.shopify_created_at.strftime('%b %d, %Y') if o.shopify_created_at else '-' }}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('orders.order_detail', order_id=o.id) }}" class="btn-ghost btn-sm-cc">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="cc-pagination" style="padding-bottom:16px;">
+        {% if page > 1 %}
+        <a href="?page={{ page - 1 }}&store={{ store_filter }}&status={{ status_filter }}&fulfillment={{ fulfillment_filter }}&q={{ search }}">
+            <i class="bi bi-chevron-left"></i>
+        </a>
+        {% endif %}
+        {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+            <span class="active">{{ p }}</span>
+            {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+            <a href="?page={{ p }}&store={{ store_filter }}&status={{ status_filter }}&fulfillment={{ fulfillment_filter }}&q={{ search }}">{{ p }}</a>
+            {% elif p == 4 or p == total_pages - 3 %}
+            <span style="border:none; color:var(--cc-text-muted);">...</span>
+            {% endif %}
+        {% endfor %}
+        {% if page < total_pages %}
+        <a href="?page={{ page + 1 }}&store={{ store_filter }}&status={{ status_filter }}&fulfillment={{ fulfillment_filter }}&q={{ search }}">
+            <i class="bi bi-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-bag-x"></i>
+        <p>No orders found.{% if not last_sync %} Click <strong>Sync All Stores</strong> to fetch orders from Shopify.{% endif %}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
