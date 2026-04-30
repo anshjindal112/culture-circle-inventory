@@ -646,6 +646,11 @@
                 {% endif %}
             </a>
 
+            <div class="sidebar-section">Inventory</div>
+            <a href="/blanks" class="sidebar-link {% if request.endpoint and request.endpoint.startswith('blanks.') and request.endpoint != 'blanks.bulk_import' %}active{% endif %}">
+                <i class="bi bi-box-seam"></i> Blanks
+            </a>
+
             <div class="sidebar-section">Sync</div>
             <form method="post" action="/blanks/sync-from-sheet" style="margin:0;">
                 <button type="submit" class="sidebar-link" style="background:none; border:none; width:100%; cursor:pointer; text-align:left;">
