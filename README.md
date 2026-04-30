@@ -1,6 +1,18 @@
 # Culture Circle Inventory Management System
 
-Private-label blank inventory tracker with Shopify order integration. Tracks blank garment stock across 16+ garment types, auto-deducts inventory from SourceX order CSVs, syncs orders from all connected Shopify stores with bidirectional status updates, and manages restock orders.
+Order operations dashboard for the Culture Circle multi-brand network. Pulls Shopify orders from 14+ connected stores with bidirectional status updates, exports filtered orders as CSV for daily fulfilment, and syncs blank inventory from a Google Sheet.
+
+## Deploy to Vercel
+
+The app runs on Vercel's Python serverless runtime. End-to-end checklist:
+
+1. Provision a hosted Postgres (Vercel Postgres / Neon / Supabase / Railway).
+2. Migrate schema + data (`pg_dump | psql "$DATABASE_URL"` — see [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md)).
+3. Generate Google OAuth env-var values once locally (`tools/google_sheets.py`).
+4. Set every variable from [`.env.example`](.env.example) in Vercel → Settings → Environment Variables.
+5. Import this repo in the Vercel dashboard with Root Directory set to `culture_circle_inventory`. The first deploy is automatic.
+
+Full step-by-step in [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md).
 
 ## Features
 
