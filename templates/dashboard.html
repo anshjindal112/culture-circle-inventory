@@ -1,274 +1,595 @@
 {% extends "base.html" %}
-{% block title %}Dashboard - Culture Circle{% endblock %}
+{% block title %}Dashboard — Culture Circle{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
 {% block topbar_actions %}
-<a href="/orders" class="btn-ghost btn-sm-cc"><i class="bi bi-bag me-1"></i>Orders</a>
-<a href="/csv/upload" class="btn-cc btn-sm-cc"><i class="bi bi-upload me-1"></i>Import CSV</a>
+<a href="{{ url_for('orders.list_orders', date_from=today, date_to=today) }}" class="btn-ghost btn-sm-cc">
+    <i class="bi bi-calendar-day"></i>Today
+</a>
+<form method="post" action="{{ url_for('inventory_sync.sync_from_sheet') }}" class="d-inline">
+    <button type="submit" class="btn-cc btn-sm-cc"><i class="bi bi-google"></i>Sync Sheet</button>
+</form>
 {% endblock %}
 
-{% block staleness %}
-{% if not stats.last_import %}
-<div class="staleness-banner"><i class="bi bi-exclamation-triangle me-2"></i>DATA NOT INITIALIZED - No CSV has been imported yet. <a href="/csv/upload">Import now</a></div>
-{% elif (now() - stats.last_import).total_seconds() > 129600 %}
-<div class="staleness-banner"><i class="bi bi-exclamation-triangle me-2"></i>DATA IS STALE - Last import was {{ stats.last_import.strftime('%b %d, %H:%M') }} ({{ ((now() - stats.last_import).total_seconds() / 3600) | round(0) | int }}h ago). <a href="/csv/upload">Upload CSV</a></div>
-{% endif %}
-{% endblock %}
+{% block staleness %}{% endblock %}
 
 {% block extra_head %}
 <style>
-    .type-bar { height: 6px; border-radius: 3px; background: #f1f3f5; overflow: hidden; margin-top: 4px; }
-    .type-bar-fill { height: 100%; border-radius: 3px; }
-    .overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
-    .type-chip {
-        padding: 10px 14px; border-radius: 8px; border: 1px solid #f1f3f5;
-        background: #fff; display: flex; justify-content: space-between; align-items: center;
-        font-size: 12px; transition: box-shadow 0.15s;
+    /* ─── Editorial Hero ─────────────────────────────────── */
+    .hero {
+        position: relative;
+        border-radius: var(--radius-xl);
+        background:
+            radial-gradient(900px 400px at 110% -10%, rgba(212,175,114,0.20), transparent 55%),
+            radial-gradient(700px 300px at -10% 100%, rgba(212,175,114,0.07), transparent 60%),
+            linear-gradient(180deg, #18171a 0%, #0e0d10 100%);
+        border: 1px solid var(--line-2);
+        padding: 36px 40px;
+        overflow: hidden;
+        margin-bottom: 28px;
+        box-shadow: var(--shadow-md);
     }
-    .type-chip:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .hero::before {
+        content: ""; position: absolute; inset: 0;
+        background-image:
+            linear-gradient(transparent 95%, rgba(212,175,114,0.05) 95%),
+            linear-gradient(90deg, transparent 95%, rgba(212,175,114,0.05) 95%);
+        background-size: 32px 32px;
+        opacity: 0.5; pointer-events: none;
+    }
+    .hero::after {
+        content: ""; position: absolute;
+        top: -120px; right: -80px;
+        width: 480px; height: 480px;
+        background: radial-gradient(circle, rgba(212,175,114,0.18), transparent 60%);
+        pointer-events: none;
+        filter: blur(8px);
+    }
+    .hero-grid {
+        position: relative; z-index: 1;
+        display: grid;
+        grid-template-columns: 1.6fr 1fr;
+        gap: 36px;
+        align-items: center;
+    }
+    @media (max-width: 1100px) { .hero-grid { grid-template-columns: 1fr; gap: 28px; } }
+
+    .hero-eyebrow {
+        display: inline-flex; align-items: center; gap: 8px;
+        font-size: 10.5px; text-transform: uppercase; letter-spacing: 2.4px;
+        color: var(--gold-2); font-weight: 600;
+        padding: 5px 12px; border: 1px solid var(--gold-line);
+        border-radius: 999px;
+        background: var(--gold-soft);
+        margin-bottom: 18px;
+    }
+    .hero-eyebrow .pulse {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: var(--gold-2); position: relative;
+    }
+    .hero-eyebrow .pulse::before {
+        content: ""; position: absolute; inset: -3px;
+        border-radius: 50%; border: 1px solid var(--gold-2);
+        animation: pulse 1.6s ease-out infinite;
+    }
+    @keyframes pulse { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
+
+    .hero-headline {
+        font-family: 'Instrument Serif', serif;
+        font-size: clamp(40px, 6vw, 72px);
+        font-weight: 400;
+        line-height: 0.96;
+        letter-spacing: -0.03em;
+        margin: 0 0 14px;
+        color: var(--ivory);
+    }
+    .hero-headline em {
+        font-style: italic;
+        background: linear-gradient(135deg, var(--gold-2), var(--gold), #b8924f);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+        font-size: 14.5px; color: var(--muted);
+        line-height: 1.6; margin: 0 0 24px;
+        max-width: 560px;
+    }
+    .hero-meta {
+        display: flex; flex-wrap: wrap; gap: 10px 20px;
+        font-size: 12px; color: var(--muted);
+    }
+    .hero-meta .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold-2); display: inline-block; margin-right: 6px; }
+
+    .hero-figure {
+        background: rgba(245,241,232,0.02);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 22px 24px;
+        position: relative; z-index: 1;
+        backdrop-filter: blur(6px);
+    }
+    .hero-figure .label {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 2px;
+        color: var(--muted); font-weight: 600; margin-bottom: 10px;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .hero-figure .label .delta {
+        font-family: 'JetBrains Mono', monospace; font-size: 11px;
+        padding: 2px 8px; border-radius: 999px;
+        background: var(--green-soft); color: var(--green);
+        letter-spacing: 0.05em;
+    }
+    .hero-figure .label .delta.dn { background: var(--red-soft); color: var(--red); }
+    .hero-figure .big {
+        font-family: 'Instrument Serif', serif;
+        font-size: 56px; line-height: 1;
+        letter-spacing: -0.03em;
+        color: var(--ivory); margin: 0 0 4px;
+        font-variant-numeric: tabular-nums;
+    }
+    .hero-figure .big small {
+        font-family: 'Inter', sans-serif;
+        font-size: 13px; color: var(--muted); font-weight: 500;
+        margin-left: 8px; letter-spacing: 0;
+    }
+    .spark { width: 100%; height: 64px; margin-top: 14px; }
+    .spark-area { fill: url(#sparkGrad); }
+    .spark-line { fill: none; stroke: url(#sparkLineGrad); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+    .spark-dot { fill: var(--gold-2); stroke: #14110b; stroke-width: 2; }
+
+    /* ─── Bento Grid ─────────────────────────────────────── */
+    .bento {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+    .tile {
+        position: relative;
+        background: linear-gradient(180deg, var(--ink-2), var(--ink-1));
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s ease;
+        overflow: hidden;
+    }
+    .tile:hover {
+        border-color: var(--line-2);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+        color: inherit;
+    }
+    .tile.featured {
+        grid-column: span 4;
+        background:
+            radial-gradient(400px 200px at 100% 0%, rgba(212,175,114,0.10), transparent 70%),
+            linear-gradient(180deg, #1a1717, #100e0e);
+        border-color: var(--gold-line);
+    }
+    .tile.featured:hover { box-shadow: var(--gold-glow); }
+    .tile.span-2 { grid-column: span 2; }
+    .tile.span-3 { grid-column: span 3; }
+    .tile.span-4 { grid-column: span 4; }
+    .tile.span-6 { grid-column: span 6; }
+    .tile.span-8 { grid-column: span 8; }
+    @media (max-width: 1100px) {
+        .tile.featured, .tile.span-3, .tile.span-4 { grid-column: span 6; }
+        .tile.span-6, .tile.span-8 { grid-column: span 12; }
+    }
+    @media (max-width: 600px) {
+        .tile.featured, .tile.span-2, .tile.span-3, .tile.span-4, .tile.span-6, .tile.span-8 { grid-column: span 12; }
+    }
+
+    .tile .tile-label {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 1.8px;
+        color: var(--muted); font-weight: 600;
+        display: flex; align-items: center; gap: 8px;
+        margin-bottom: 14px;
+    }
+    .tile .tile-label .ico {
+        width: 26px; height: 26px; border-radius: 7px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: rgba(245,241,232,0.04);
+        border: 1px solid var(--line);
+        color: var(--ivory); font-size: 12px;
+    }
+    .tile .tile-label.gold .ico { background: var(--gold-soft); color: var(--gold-2); border-color: var(--gold-line); }
+    .tile .tile-label.danger .ico { background: var(--red-soft); color: var(--red); border-color: rgba(248,113,113,0.25); }
+    .tile .tile-value {
+        font-family: 'Instrument Serif', serif;
+        font-size: 44px; line-height: 1;
+        letter-spacing: -0.03em;
+        color: var(--ivory);
+        font-variant-numeric: tabular-nums;
+        margin: 0 0 8px;
+    }
+    .tile.featured .tile-value { font-size: 56px; }
+    .tile .tile-foot {
+        font-size: 11.5px; color: var(--muted);
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .tile .tile-foot b { color: var(--ivory-dim); font-weight: 600; }
+    .tile .tile-arrow {
+        position: absolute; top: 20px; right: 20px;
+        color: var(--dim); font-size: 14px;
+        transition: all 0.2s ease;
+    }
+    .tile:hover .tile-arrow { color: var(--gold-2); transform: translate(2px, -2px); }
+
+    /* ─── Order rows (richer than table) ─────────────────── */
+    .order-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 18px;
+        align-items: center;
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--line);
+        transition: background 0.15s ease;
+        text-decoration: none;
+        color: inherit;
+    }
+    .order-row:last-child { border-bottom: none; }
+    .order-row:hover { background: rgba(212,175,114,0.04); color: inherit; }
+    .order-row .left { display: flex; align-items: center; gap: 16px; min-width: 0; }
+    .order-row .num-box {
+        width: 48px; height: 48px;
+        border-radius: 12px;
+        background: linear-gradient(180deg, var(--ink-3), var(--ink-2));
+        border: 1px solid var(--line-2);
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .order-row .num-box .day {
+        font-family: 'Instrument Serif', serif;
+        font-size: 18px; line-height: 1;
+        color: var(--ivory);
+    }
+    .order-row .num-box .mon {
+        font-size: 9px; text-transform: uppercase; letter-spacing: 1.2px;
+        color: var(--muted); font-weight: 600;
+    }
+    .order-row .info { min-width: 0; }
+    .order-row .info .top {
+        display: flex; align-items: center; gap: 10px;
+        margin-bottom: 4px; flex-wrap: wrap;
+    }
+    .order-row .info .order-name {
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 600; font-size: 13px;
+        color: var(--gold-2);
+    }
+    .order-row .info .store-chip {
+        font-size: 10px; font-weight: 600;
+        padding: 2px 8px; border-radius: 999px;
+        background: rgba(245,241,232,0.05);
+        border: 1px solid var(--line-2);
+        color: var(--ivory-dim);
+        text-transform: uppercase; letter-spacing: 0.8px;
+    }
+    .order-row .info .who {
+        font-size: 13px; color: var(--ivory);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .order-row .info .meta {
+        font-size: 11.5px; color: var(--muted);
+        margin-top: 2px;
+    }
+    .order-row .right {
+        display: flex; flex-direction: column;
+        align-items: flex-end; gap: 5px;
+    }
+    .order-row .right .total {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 14px; font-weight: 600;
+        color: var(--ivory);
+    }
+    .order-row .right .items {
+        font-size: 10.5px; color: var(--muted);
+        text-transform: uppercase; letter-spacing: 1px;
+    }
+
+    /* ─── Store rail ─────────────────────────────────────── */
+    .store-rail { display: flex; flex-direction: column; gap: 1px; }
+    .store-rail-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 11px 0;
+        border-bottom: 1px dashed var(--line);
+        text-decoration: none; color: inherit;
+        transition: padding 0.18s ease;
+    }
+    .store-rail-row:last-child { border-bottom: none; }
+    .store-rail-row:hover { padding-left: 6px; color: inherit; }
+    .store-rail-row .name {
+        font-size: 13px; font-weight: 500; color: var(--ivory);
+        text-transform: uppercase; letter-spacing: 0.8px;
+    }
+    .store-rail-row .name small {
+        text-transform: none; letter-spacing: 0;
+        color: var(--muted); font-weight: 400; margin-left: 8px;
+    }
+    .store-rail-row .count {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px; font-weight: 700;
+        padding: 3px 10px; border-radius: 999px;
+        font-variant-numeric: tabular-nums;
+    }
+    .store-rail-row .count.warn { background: var(--red-soft); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+    .store-rail-row .count.ok { background: var(--green-soft); color: var(--green); border: 1px solid rgba(110,231,167,0.25); }
+
+    /* ─── Sync card ─────────────────────────────────────── */
+    .sync-card {
+        background:
+            radial-gradient(300px 200px at 100% 0%, rgba(212,175,114,0.18), transparent 60%),
+            linear-gradient(180deg, #1a1815, #100e0c);
+        border: 1px solid var(--gold-line);
+        border-radius: var(--radius-lg);
+        padding: 22px;
+        position: relative; overflow: hidden;
+    }
+    .sync-card::before {
+        content: ""; position: absolute;
+        top: -40px; right: -40px;
+        width: 160px; height: 160px;
+        background: radial-gradient(circle, rgba(212,175,114,0.25), transparent 60%);
+        filter: blur(20px);
+    }
+    .sync-card .row-1 { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; position: relative; }
+    .sync-card .gicon {
+        width: 38px; height: 38px; border-radius: 10px;
+        background: var(--gold-grad); color: #14110b;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 18px; flex-shrink: 0;
+        box-shadow: 0 6px 16px -6px rgba(212,175,114,0.6);
+    }
+    .sync-card .title {
+        font-family: 'Instrument Serif', serif;
+        font-size: 22px; line-height: 1.1;
+        color: var(--ivory); margin: 0;
+    }
+    .sync-card .subtitle {
+        font-size: 11px; text-transform: uppercase; letter-spacing: 1.6px;
+        color: var(--gold-2); font-weight: 600;
+    }
+    .sync-card p {
+        font-size: 13px; color: var(--ivory-dim);
+        line-height: 1.55; margin: 0 0 18px;
+        position: relative;
+    }
+    .sync-card .last-sync {
+        font-size: 11px; color: var(--muted);
+        margin-bottom: 14px;
+        font-family: 'JetBrains Mono', monospace;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Stats Row -->
-<div class="row g-3 mb-4">
-    <div class="col-6 col-md-4 col-xl">
-        <div class="stat-card">
-            <div class="stat-icon blue"><i class="bi bi-stack"></i></div>
-            <div class="stat-info">
-                <div class="stat-label">Total Stock</div>
-                <div class="stat-value">{{ stats.total_stock | int }}</div>
+{# ── Sparkline data prep ─────────────────────────────────── #}
+{% set spark_max = sparkline | map(attribute='orders') | max | default(1) %}
+{% if spark_max < 1 %}{% set spark_max = 1 %}{% endif %}
+{% set spark_pts = [] %}
+{% for s in sparkline %}
+    {% set _ = spark_pts.append({
+        'x': loop.index0 * (520 / (sparkline | length - 1 if sparkline | length > 1 else 1)),
+        'y': 60 - (s.orders / spark_max * 52),
+        'orders': s.orders,
+        'day': s.day
+    }) %}
+{% endfor %}
+
+{# Compute % delta today vs yesterday for hero figure #}
+{% set delta_pct = 0 %}
+{% if stats.yesterday_orders and stats.yesterday_orders > 0 %}
+    {% set delta_pct = ((stats.today_orders or 0) - stats.yesterday_orders) / stats.yesterday_orders * 100 %}
+{% endif %}
+
+<!-- ── Editorial Hero ─────────────────────────────────────── -->
+<div class="hero">
+    <div class="hero-grid">
+        <div>
+            <span class="hero-eyebrow"><span class="pulse"></span> Live · {{ stats.store_count or 0 }} stores</span>
+            <h1 class="hero-headline">Good orders<br><em>are waiting.</em></h1>
+            <p class="hero-sub">
+                {% if stats.unfulfilled_orders > 0 %}
+                    {{ stats.unfulfilled_orders }} unfulfilled order{{ 's' if stats.unfulfilled_orders != 1 else '' }} across the network — {{ stats.today_orders or 0 }} placed today.
+                    Pull the queue, pick the items, ship them out.
+                {% else %}
+                    The queue is clear. {{ stats.today_orders or 0 }} order{{ 's' if (stats.today_orders or 0) != 1 else '' }} placed today, all caught up on fulfilment.
+                {% endif %}
+            </p>
+            <div class="hero-meta">
+                <span><span class="dot"></span>Today <b style="color:var(--ivory);">{{ stats.today_orders or 0 }}</b></span>
+                <span><span class="dot"></span>Yesterday <b style="color:var(--ivory);">{{ stats.yesterday_orders or 0 }}</b></span>
+                <span><span class="dot"></span>Active <b style="color:var(--ivory);">{{ "{:,}".format(stats.total_orders or 0) }}</b></span>
+                {% if last_sync and last_sync.completed_at %}
+                <span><span class="dot"></span>Synced <b style="color:var(--ivory);">{{ last_sync.completed_at.strftime('%b %d, %H:%M') }}</b></span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="hero-figure">
+            <div class="label">
+                <span>14-DAY ORDER FLOW</span>
+                {% if delta_pct != 0 %}
+                <span class="delta {% if delta_pct < 0 %}dn{% endif %}">
+                    {% if delta_pct > 0 %}↑ {% else %}↓ {% endif %}{{ "%.0f" | format(delta_pct | abs) }}%
+                </span>
+                {% endif %}
+            </div>
+            <div class="big">{{ stats.today_orders or 0 }}<small>orders today</small></div>
+            <svg class="spark" viewBox="0 0 520 64" preserveAspectRatio="none">
+                <defs>
+                    <linearGradient id="sparkGrad" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stop-color="#d4af72" stop-opacity="0.45"/>
+                        <stop offset="100%" stop-color="#d4af72" stop-opacity="0"/>
+                    </linearGradient>
+                    <linearGradient id="sparkLineGrad" x1="0" x2="1" y1="0" y2="0">
+                        <stop offset="0%" stop-color="#b8924f"/>
+                        <stop offset="100%" stop-color="#e8c994"/>
+                    </linearGradient>
+                </defs>
+                {% if spark_pts | length > 1 %}
+                <path class="spark-area" d="M{{ spark_pts[0].x }},64 {% for p in spark_pts %}L{{ p.x }},{{ p.y }} {% endfor %}L{{ spark_pts[-1].x }},64 Z"></path>
+                <path class="spark-line" d="M{% for p in spark_pts %}{{ p.x }},{{ p.y }} {% if not loop.last %}L{% endif %}{% endfor %}"></path>
+                <circle class="spark-dot" cx="{{ spark_pts[-1].x }}" cy="{{ spark_pts[-1].y }}" r="4"/>
+                {% endif %}
+            </svg>
+            <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--dim); font-family:'JetBrains Mono', monospace; margin-top:4px;">
+                <span>{{ sparkline[0].day.strftime('%b %d') if sparkline else '' }}</span>
+                <span>TODAY</span>
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-4 col-xl">
-        <div class="stat-card">
-            <div class="stat-icon red"><i class="bi bi-exclamation-triangle"></i></div>
-            <div class="stat-info">
-                <div class="stat-label">Red (Late)</div>
-                <div class="stat-value">{{ stats.red_count }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-4 col-xl">
-        <div class="stat-card">
-            <div class="stat-icon yellow"><i class="bi bi-clock"></i></div>
-            <div class="stat-info">
-                <div class="stat-label">Yellow (Order Now)</div>
-                <div class="stat-value">{{ stats.yellow_count }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-md-4 col-xl">
-        <div class="stat-card">
-            <div class="stat-icon green"><i class="bi bi-check-circle"></i></div>
-            <div class="stat-info">
-                <div class="stat-label">Healthy</div>
-                <div class="stat-value">{{ stats.green_count }}</div>
-            </div>
-        </div>
-    </div>
-    {% if stats.unfulfilled_orders > 0 %}
-    <div class="col-6 col-md-4 col-xl">
-        <a href="/orders?fulfillment=unfulfilled" style="text-decoration:none;">
-            <div class="stat-card" style="border-color:var(--cc-red);">
-                <div class="stat-icon red"><i class="bi bi-bag-x"></i></div>
-                <div class="stat-info">
-                    <div class="stat-label">Unfulfilled Orders</div>
-                    <div class="stat-value" style="color:var(--cc-red);">{{ stats.unfulfilled_orders }}</div>
-                </div>
-            </div>
-        </a>
-    </div>
-    {% endif %}
-    {% if stats.unmapped_count > 0 %}
-    <div class="col-6 col-md-4 col-xl">
-        <a href="/csv/unmapped" style="text-decoration:none;">
-            <div class="stat-card" style="border-color:var(--cc-yellow);">
-                <div class="stat-icon yellow"><i class="bi bi-question-circle"></i></div>
-                <div class="stat-info">
-                    <div class="stat-label">Unmapped SKUs</div>
-                    <div class="stat-value" style="color:var(--cc-red);">{{ stats.unmapped_count }}</div>
-                </div>
-            </div>
-        </a>
-    </div>
-    {% endif %}
 </div>
 
-<div class="row g-4">
-    <!-- Left: Stock overview + attention items -->
-    <div class="col-lg-8">
-        <!-- Stock by Garment Type -->
-        <div class="cc-card mb-4">
-            <div class="cc-card-header">
-                <h6>Stock by Garment Type</h6>
-                <a href="/blanks" class="btn-ghost btn-sm-cc">View All Blanks</a>
-            </div>
-            <div class="cc-card-body">
-                <div class="overview-grid">
-                    {% set max_stock = type_stock[0].stock | int if type_stock and type_stock[0].stock else 1 %}
-                    {% for ts in type_stock %}
-                    <a href="/blanks?type={{ ts.garment_type | urlencode }}" class="type-chip" style="text-decoration:none; color:inherit;">
-                        <div>
-                            <div style="font-weight:600; font-size:13px; {% if ts.stock | int == 0 %}color:var(--cc-text-muted);{% endif %}">
-                                {{ ts.garment_type }}
-                            </div>
-                            <div style="font-size:10px; color:var(--cc-text-muted); margin-top:2px;">
-                                {{ ts.colors }} color{{ 's' if ts.colors != 1 else '' }} &middot;
-                                <span style="color:var(--cc-green);">{{ ts.in_stock }} in stock</span>
-                                {% if ts.out_of_stock > 0 %}&middot; <span style="color:var(--cc-red);">{{ ts.out_of_stock }} empty</span>{% endif %}
-                            </div>
-                        </div>
-                        <div style="font-size:18px; font-weight:700; {% if ts.stock | int > 0 %}color:var(--cc-accent);{% else %}color:#ddd;{% endif %}">
-                            {{ ts.stock | int }}
-                        </div>
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
+<!-- ── Bento Grid: stat tiles ─────────────────────────────── -->
+<div class="bento">
+    <a href="{{ url_for('orders.list_orders', fulfillment='unfulfilled') }}" class="tile featured">
+        <i class="bi bi-arrow-up-right tile-arrow"></i>
+        <div class="tile-label danger">
+            <span class="ico"><i class="bi bi-bag-x-fill"></i></span>
+            UNFULFILLED · ACTION REQUIRED
         </div>
+        <div class="tile-value" style="color: {% if stats.unfulfilled_orders > 0 %}var(--red){% else %}var(--green){% endif %};">
+            {{ stats.unfulfilled_orders or 0 }}
+        </div>
+        <div class="tile-foot">
+            <span>across <b>{{ stats.store_count or 0 }}</b> stores</span>
+            <span>{% if stats.unfulfilled_orders > 0 %}Pick up →{% else %}All clear ✓{% endif %}</span>
+        </div>
+    </a>
+    <a href="{{ url_for('orders.list_orders', date_from=today, date_to=today) }}" class="tile span-3">
+        <i class="bi bi-arrow-up-right tile-arrow"></i>
+        <div class="tile-label gold">
+            <span class="ico"><i class="bi bi-calendar-day"></i></span>
+            TODAY
+        </div>
+        <div class="tile-value">{{ stats.today_orders or 0 }}</div>
+        <div class="tile-foot">
+            <span>vs yesterday <b>{{ stats.yesterday_orders or 0 }}</b></span>
+        </div>
+    </a>
+    <a href="{{ url_for('orders.list_orders', fulfillment='fulfilled') }}" class="tile span-3">
+        <i class="bi bi-arrow-up-right tile-arrow"></i>
+        <div class="tile-label">
+            <span class="ico" style="color: var(--green); background: var(--green-soft); border-color: rgba(110,231,167,0.25);"><i class="bi bi-check-circle-fill"></i></span>
+            FULFILLED
+        </div>
+        <div class="tile-value">{{ stats.fulfilled_orders or 0 }}</div>
+        <div class="tile-foot">
+            <span><b>{{ stats.partial_orders or 0 }}</b> partial</span>
+        </div>
+    </a>
+    <div class="tile span-2">
+        <div class="tile-label">
+            <span class="ico"><i class="bi bi-shop"></i></span>
+            STORES
+        </div>
+        <div class="tile-value">{{ stats.store_count or 0 }}</div>
+        <div class="tile-foot">
+            <span>active</span>
+        </div>
+    </div>
+</div>
 
-        <!-- Attention Required: blanks that need action -->
-        {% if attention_blanks %}
-        <div class="cc-card mb-4">
+<!-- ── Recent Orders + Side rail ──────────────────────────── -->
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="cc-card">
             <div class="cc-card-header">
-                <h6 style="color:var(--cc-red);">
-                    <i class="bi bi-exclamation-triangle me-1"></i>
-                    Needs Attention ({{ attention_blanks | length }})
-                </h6>
-                <a href="/blanks?stock=out_of_stock" class="btn-ghost btn-sm-cc">View All</a>
+                <h6><i class="bi bi-bag me-2" style="color:var(--gold-2);"></i>Recent Unfulfilled</h6>
+                <a href="{{ url_for('orders.list_orders', fulfillment='unfulfilled') }}" class="btn-ghost btn-sm-cc">
+                    View queue <i class="bi bi-arrow-right"></i>
+                </a>
             </div>
-            <div class="table-responsive">
-                <table class="cc-table">
-                    <thead>
-                        <tr>
-                            <th>Status</th>
-                            <th>Blank</th>
-                            <th>Size</th>
-                            <th class="text-end">Stock</th>
-                            <th class="text-end">Burn/Day</th>
-                            <th class="text-end">Days Left</th>
-                            <th class="text-end">In-Flight</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for b in attention_blanks[:20] %}
-                        <tr>
-                            <td><span class="badge status-{{ b.status_color }}" style="font-size:10px; padding:2px 8px; border-radius:6px;">{{ b.status_color | upper }}</span></td>
-                            <td>
-                                <span style="font-weight:500;">{{ b.garment_type or b.blank_name }}</span>
-                                {% if b.color %}<span style="font-size:11px; color:var(--cc-text-muted);"> &mdash; {{ b.color }}</span>{% endif %}
-                            </td>
-                            <td>{{ b.size }}</td>
-                            <td class="text-end" style="font-weight:600;">{{ b.current_stock | int }}</td>
-                            <td class="text-end">{{ "%.1f" | format(b.avg_daily_burn | float) }}</td>
-                            <td class="text-end">
-                                {% if b.days_to_stockout is none %}<span style="color:var(--cc-text-muted);">-</span>
-                                {% else %}{{ b.days_to_stockout }}{% endif %}
-                            </td>
-                            <td class="text-end">{{ b.in_flight_qty | int }}</td>
-                            <td>
-                                <a href="/restock/new?blank_id={{ b.blank_id }}" class="btn-cc btn-sm-cc" style="padding:3px 8px; font-size:11px;">Restock</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            {% if recent_unfulfilled %}
+            <div>
+                {% for o in recent_unfulfilled %}
+                <a href="{{ url_for('orders.order_detail', order_id=o.id) }}" class="order-row">
+                    <div class="left">
+                        <div class="num-box">
+                            <span class="day">{{ o.shopify_created_at.strftime('%d') if o.shopify_created_at else '—' }}</span>
+                            <span class="mon">{{ o.shopify_created_at.strftime('%b') if o.shopify_created_at else '' }}</span>
+                        </div>
+                        <div class="info">
+                            <div class="top">
+                                <span class="order-name">{{ o.name or ('#' ~ o.order_number) }}</span>
+                                <span class="store-chip">{{ o.store_prefix | replace('_', ' ') }}</span>
+                            </div>
+                            <div class="who">{{ (o.customer_first_name or '') ~ ' ' ~ (o.customer_last_name or '') | trim or 'Anonymous' }}</div>
+                            <div class="meta">
+                                {% if o.shipping_city %}{{ o.shipping_city }}{% if o.shipping_province %}, {{ o.shipping_province }}{% endif %} ·{% endif %}
+                                {{ o.shopify_created_at.strftime('%H:%M') if o.shopify_created_at else '' }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="right">
+                        <span class="total">{{ o.currency }} {{ "%.2f" | format(o.total_price | float) }}</span>
+                        <span class="items">{{ o.item_count or 0 }} item{{ 's' if (o.item_count or 0) != 1 else '' }}</span>
+                    </div>
+                </a>
+                {% endfor %}
             </div>
-            {% if attention_blanks | length > 20 %}
-            <div style="padding:10px 20px; text-align:center; font-size:12px; color:var(--cc-text-muted); border-top:1px solid var(--cc-border);">
-                + {{ attention_blanks | length - 20 }} more items need attention
+            {% else %}
+            <div class="empty-state">
+                <i class="bi bi-check-all"></i>
+                <p>All caught up. Nothing waiting on fulfilment.</p>
             </div>
             {% endif %}
         </div>
-        {% endif %}
     </div>
 
-    <!-- Right: Quick actions + restocks -->
     <div class="col-lg-4">
-        <!-- Quick Numbers -->
-        <div class="cc-card mb-4">
-            <div class="cc-card-header"><h6>Inventory Snapshot</h6></div>
-            <div class="cc-card-body" style="padding:16px 20px;">
-                <div class="d-flex justify-content-between align-items-center mb-3" style="font-size:13px;">
-                    <span style="color:var(--cc-text-muted);">Total SKUs</span>
-                    <span style="font-weight:700;">{{ stats.total_blanks }}</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mb-3" style="font-size:13px;">
-                    <span style="color:var(--cc-text-muted);">Total Units in Stock</span>
-                    <span style="font-weight:700; color:var(--cc-accent);">{{ stats.total_stock | int }}</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mb-3" style="font-size:13px;">
-                    <span style="color:var(--cc-text-muted);">Shopify Orders</span>
-                    <span style="font-weight:700;">{{ stats.total_shopify_orders }}</span>
-                </div>
-                <hr style="margin:12px 0; border-color:#f1f3f5;">
-                <!-- Health bar -->
-                <div style="font-size:11px; color:var(--cc-text-muted); margin-bottom:6px;">Stock Health</div>
-                {% set total = stats.red_count + stats.yellow_count + stats.green_count + stats.gray_count %}
-                {% if total > 0 %}
-                <div style="display:flex; height:8px; border-radius:4px; overflow:hidden; gap:2px;">
-                    {% if stats.green_count > 0 %}<div style="flex:{{ stats.green_count }}; background:var(--cc-green); border-radius:4px;"></div>{% endif %}
-                    {% if stats.gray_count > 0 %}<div style="flex:{{ stats.gray_count }}; background:#d5d8dc; border-radius:4px;"></div>{% endif %}
-                    {% if stats.yellow_count > 0 %}<div style="flex:{{ stats.yellow_count }}; background:var(--cc-yellow); border-radius:4px;"></div>{% endif %}
-                    {% if stats.red_count > 0 %}<div style="flex:{{ stats.red_count }}; background:var(--cc-red); border-radius:4px;"></div>{% endif %}
-                </div>
-                <div class="d-flex justify-content-between mt-1" style="font-size:10px; color:var(--cc-text-muted);">
-                    <span><span style="color:var(--cc-green);">{{ stats.green_count }}</span> healthy</span>
-                    <span><span style="color:var(--cc-red);">{{ stats.red_count + stats.yellow_count }}</span> need action</span>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Active Restocks -->
-        {% if restocks %}
+        <!-- Stores rail -->
         <div class="cc-card mb-4">
             <div class="cc-card-header">
-                <h6>Active Restocks ({{ restocks | length }})</h6>
-                <a href="/restock" class="btn-ghost btn-sm-cc">View All</a>
+                <h6><i class="bi bi-shop me-2" style="color:var(--gold-2);"></i>Stores</h6>
+                <a href="{{ url_for('orders.list_orders') }}" class="btn-ghost btn-sm-cc">All <i class="bi bi-arrow-right"></i></a>
             </div>
-            <div class="cc-card-body" style="padding:0;">
-                {% for r in restocks[:5] %}
-                <div style="padding:10px 16px; {% if not loop.last %}border-bottom:1px solid #f8f9fa;{% endif %} font-size:12px;">
-                    <div class="d-flex justify-content-between align-items-center">
+            <div class="cc-card-body" style="padding: 6px 22px 14px;">
+                {% if store_breakdown %}
+                <div class="store-rail">
+                    {% for s in store_breakdown[:8] %}
+                    <a href="{{ url_for('orders.list_orders', store=s.store_prefix, fulfillment='unfulfilled' if s.unfulfilled else None) }}"
+                       class="store-rail-row">
                         <div>
-                            <span style="font-weight:600;">{{ r.blank_name }}</span>
-                            <span style="color:var(--cc-text-muted);">{{ r.size }}</span>
+                            <span class="name">{{ s.store_prefix | replace('_', ' ') }}</span>
+                            <small>{{ s.orders }} active</small>
                         </div>
-                        <span style="font-weight:700; color:var(--cc-accent);">{{ r.qty_ordered }} units</span>
-                    </div>
-                    <div class="d-flex justify-content-between mt-1">
-                        <span class="badge-status badge-{{ 'paid' if r.status == 'in_transit' else 'pending' }}" style="font-size:10px;">{{ r.status | replace('_', ' ') }}</span>
-                        <span style="color:var(--cc-text-muted); font-size:11px;">
-                            {% if r.expected_delivery %}ETA {{ r.expected_delivery.strftime('%b %d') }}{% else %}No ETA{% endif %}
+                        <span class="count {% if s.unfulfilled > 0 %}warn{% else %}ok{% endif %}">
+                            {{ s.unfulfilled }}
                         </span>
-                    </div>
+                    </a>
+                    {% endfor %}
                 </div>
-                {% endfor %}
-                {% if restocks | length > 5 %}
-                <div style="padding:8px 16px; text-align:center; font-size:11px; color:var(--cc-text-muted); border-top:1px solid #f1f3f5;">
-                    <a href="/restock" style="color:var(--cc-accent);">+ {{ restocks | length - 5 }} more</a>
-                </div>
+                {% else %}
+                <div style="font-size:13px; color:var(--muted); padding:10px 0;">No stores synced yet.</div>
                 {% endif %}
             </div>
         </div>
-        {% endif %}
 
-        <!-- Quick Links -->
-        <div class="cc-card">
-            <div class="cc-card-header"><h6>Quick Actions</h6></div>
-            <div class="cc-card-body" style="padding:12px 16px;">
-                <div class="d-flex flex-column gap-2">
-                    <a href="/blanks/add" class="btn-ghost w-100 text-start" style="font-size:13px;"><i class="bi bi-plus-circle me-2"></i>Add New Blank</a>
-                    <a href="/restock/new" class="btn-ghost w-100 text-start" style="font-size:13px;"><i class="bi bi-arrow-repeat me-2"></i>Create Restock Order</a>
-                    <a href="/blanks/bulk-edit" class="btn-ghost w-100 text-start" style="font-size:13px;"><i class="bi bi-pencil-square me-2"></i>Bulk Edit Blanks</a>
-                    <a href="/blanks/mappings" class="btn-ghost w-100 text-start" style="font-size:13px;"><i class="bi bi-link-45deg me-2"></i>SKU Mappings</a>
-                    <a href="/orders" class="btn-ghost w-100 text-start" style="font-size:13px;"><i class="bi bi-bag me-2"></i>Shopify Orders</a>
+        <!-- Sync card -->
+        <div class="sync-card">
+            <div class="row-1">
+                <div class="gicon"><i class="bi bi-google"></i></div>
+                <div>
+                    <div class="subtitle">Inventory Source</div>
+                    <h5 class="title">Google Sheet</h5>
                 </div>
             </div>
+            <p>Stock lives in the warehouse sheet. Pull the latest counts into the dashboard whenever you update the sheet.</p>
+            {% if stats.last_import %}
+            <div class="last-sync">
+                <i class="bi bi-clock-history me-1"></i>Last sync · {{ stats.last_import.strftime('%b %d, %H:%M') }}
+            </div>
+            {% endif %}
+            <form method="post" action="{{ url_for('inventory_sync.sync_from_sheet') }}" style="position: relative;">
+                <button type="submit" class="btn-cc w-100" style="justify-content:center;">
+                    <i class="bi bi-arrow-down-circle"></i>Pull from Sheet
+                </button>
+            </form>
         </div>
     </div>
 </div>

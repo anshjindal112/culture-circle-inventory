@@ -29,3 +29,18 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Vercel
+.vercel/
+
+# Stray files dumped into the project tree by other tooling — not part of this app
+routes/IMG_*.PNG
+routes/IMG_*.png
+routes/*.pdf
+routes/*.zip
+routes/Pvt Label Domain Invoice/
+routes/DONATION_PLEDGE_PR59_HANDOVER.md
+routes/TRADEOFF_CONTEXT.md
+routes/donation-pledge-cart.md
+routes/claude_*.zip
+routes/culture_circle_inventory/

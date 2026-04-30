@@ -1,3 +1,5 @@
+from datetime import date
+
 from flask import Blueprint, render_template
 from db.database import query
 
@@ -6,143 +8,95 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/')
 def index():
-    # Get all active blanks with burn rate and days-to-stockout
-    blanks = query("""
-        SELECT b.*,
-            COALESCE(burn.avg_burn, 0) AS avg_daily_burn,
-            CASE
-                WHEN COALESCE(burn.avg_burn, 0) = 0 AND b.current_stock > 0 THEN NULL
-                WHEN COALESCE(burn.avg_burn, 0) = 0 AND b.current_stock <= 0 THEN 0
-                ELSE ROUND(b.current_stock / burn.avg_burn, 1)
-            END AS days_to_stockout,
-            COALESCE(inflight.qty, 0) AS in_flight_qty
-        FROM blank_master b
-        LEFT JOIN LATERAL (
-            SELECT CASE
-                WHEN COALESCE(SUM(ABS(sm.quantity)), 0) /
-                     GREATEST(COUNT(DISTINCT sm.movement_date), 1) > 3
-                THEN COALESCE(SUM(ABS(sm.quantity)) FILTER (WHERE sm.movement_date >= CURRENT_DATE - 7), 0) / 7.0
-                ELSE COALESCE(SUM(ABS(sm.quantity)) FILTER (WHERE sm.movement_date >= CURRENT_DATE - 21), 0) / 21.0
-            END AS avg_burn
-            FROM stock_movements sm
-            WHERE sm.blank_id = b.blank_id
-              AND sm.movement_type = 'CSV_DEDUCTION'
-              AND sm.movement_date >= CURRENT_DATE - 21
-        ) burn ON TRUE
-        LEFT JOIN LATERAL (
-            SELECT COALESCE(SUM(r.qty_ordered), 0) AS qty
-            FROM restock_orders r
-            WHERE r.blank_id = b.blank_id
-              AND r.status IN ('in_production', 'in_transit')
-        ) inflight ON TRUE
-        WHERE b.is_active = TRUE
-        ORDER BY
-            CASE
-                WHEN COALESCE(burn.avg_burn, 0) = 0 AND b.current_stock <= 0 THEN 0
-                WHEN COALESCE(burn.avg_burn, 0) = 0 THEN 9999
-                ELSE ROUND(b.current_stock / burn.avg_burn, 1)
-            END ASC
-    """)
+    today = date.today().isoformat()
+    # Orders-only landing page. Inventory/stock surface lives in the Google Sheet.
+    shopify_stats = query("""
+        SELECT
+            COUNT(*) FILTER (WHERE financial_status NOT IN ('voided', 'refunded') AND cancelled_at IS NULL) AS total_orders,
+            COUNT(*) FILTER (WHERE fulfillment_status = 'unfulfilled'
+                             AND financial_status NOT IN ('voided', 'refunded')
+                             AND cancelled_at IS NULL) AS unfulfilled_orders,
+            COUNT(*) FILTER (WHERE fulfillment_status = 'fulfilled') AS fulfilled_orders,
+            COUNT(*) FILTER (WHERE fulfillment_status = 'partial') AS partial_orders,
+            COUNT(DISTINCT store_prefix) FILTER (WHERE financial_status NOT IN ('voided', 'refunded')) AS store_count,
+            COUNT(*) FILTER (WHERE shopify_created_at::date = CURRENT_DATE
+                             AND financial_status NOT IN ('voided', 'refunded')
+                             AND cancelled_at IS NULL) AS today_orders,
+            COUNT(*) FILTER (WHERE shopify_created_at::date = CURRENT_DATE - 1
+                             AND financial_status NOT IN ('voided', 'refunded')
+                             AND cancelled_at IS NULL) AS yesterday_orders
+        FROM shopify_orders
+    """, fetch='one') or {}
 
-    # Compute status for each blank
-    for b in blanks:
-        b['status_color'] = _compute_status(b)
-
-    # Staleness check: last import time
+    # Last sheet sync (so the staleness banner still works)
     last_import = query(
         "SELECT imported_at FROM import_batches ORDER BY imported_at DESC LIMIT 1",
         fetch='one'
     )
 
-    # Unmapped count
-    unmapped = query(
-        "SELECT COUNT(*) AS cnt FROM unmapped_sku_log WHERE status = 'pending'",
+    last_sync = query(
+        "SELECT * FROM shopify_sync_log ORDER BY started_at DESC LIMIT 1",
         fetch='one'
     )
 
-    # Summary stats
-    stats = {
-        'total_blanks': len(blanks),
-        'red_count': sum(1 for b in blanks if b['status_color'] == 'red'),
-        'yellow_count': sum(1 for b in blanks if b['status_color'] == 'yellow'),
-        'green_count': sum(1 for b in blanks if b['status_color'] == 'green'),
-        'gray_count': sum(1 for b in blanks if b['status_color'] == 'gray'),
-        'unmapped_count': unmapped['cnt'] if unmapped else 0,
-        'last_import': last_import['imported_at'] if last_import else None,
-    }
-
-    # Total stock
-    total_stock = query(
-        "SELECT SUM(current_stock) AS total FROM blank_master WHERE is_active = TRUE",
-        fetch='one'
-    )
-    stats['total_stock'] = int(total_stock['total'] or 0) if total_stock else 0
-
-    # Stock by garment type (compact heatmap for dashboard)
-    type_stock = query("""
-        SELECT garment_type,
-               SUM(current_stock) AS stock,
-               COUNT(DISTINCT color) AS colors,
-               COUNT(*) FILTER (WHERE current_stock > 0) AS in_stock,
-               COUNT(*) FILTER (WHERE current_stock = 0) AS out_of_stock
-        FROM blank_master WHERE is_active = TRUE
-        GROUP BY garment_type ORDER BY SUM(current_stock) DESC
+    # Recent unfulfilled orders — top of the daily fulfilment queue
+    recent_unfulfilled = query("""
+        SELECT o.id, o.name, o.order_number, o.store_prefix,
+               o.shopify_created_at, o.total_price, o.currency,
+               o.customer_first_name, o.customer_last_name,
+               o.shipping_city, o.shipping_province,
+               (SELECT COUNT(*) FROM shopify_order_items i WHERE i.order_id = o.id) AS item_count
+        FROM shopify_orders o
+        WHERE o.fulfillment_status = 'unfulfilled'
+          AND o.financial_status NOT IN ('voided', 'refunded')
+          AND o.cancelled_at IS NULL
+        ORDER BY o.shopify_created_at DESC NULLS LAST
+        LIMIT 10
     """)
 
-    # Unfulfilled Shopify orders count
-    shopify_stats = query("""
-        SELECT
-            COUNT(*) FILTER (WHERE fulfillment_status = 'unfulfilled') AS unfulfilled_orders,
-            COUNT(*) AS total_orders
+    # Per-store unfulfilled breakdown
+    store_breakdown = query("""
+        SELECT store_prefix,
+               COUNT(*) AS orders,
+               COUNT(*) FILTER (WHERE fulfillment_status = 'unfulfilled') AS unfulfilled
         FROM shopify_orders
-    """, fetch='one')
-    stats['unfulfilled_orders'] = shopify_stats['unfulfilled_orders'] if shopify_stats else 0
-    stats['total_shopify_orders'] = shopify_stats['total_orders'] if shopify_stats else 0
-
-    # Pending restock orders
-    restocks = query("""
-        SELECT r.*, b.blank_name, b.size
-        FROM restock_orders r
-        JOIN blank_master b ON b.blank_id = r.blank_id
-        WHERE r.status IN ('in_production', 'in_transit')
-        ORDER BY r.expected_delivery ASC NULLS LAST
+        WHERE financial_status NOT IN ('voided', 'refunded')
+          AND cancelled_at IS NULL
+        GROUP BY store_prefix
+        ORDER BY unfulfilled DESC NULLS LAST, orders DESC
     """)
 
-    # Only show blanks with issues (red/yellow) or with burn rate on dashboard
-    # instead of all 462
-    attention_blanks = [b for b in blanks if b['status_color'] in ('red', 'yellow')]
+    # 14-day daily orders for the hero sparkline
+    sparkline_rows = query("""
+        WITH days AS (
+            SELECT generate_series(CURRENT_DATE - 13, CURRENT_DATE, INTERVAL '1 day')::date AS d
+        )
+        SELECT days.d AS day,
+               COALESCE(COUNT(o.id) FILTER (
+                   WHERE o.financial_status NOT IN ('voided', 'refunded')
+                     AND o.cancelled_at IS NULL
+               ), 0) AS orders,
+               COALESCE(SUM(o.total_price) FILTER (
+                   WHERE o.financial_status NOT IN ('voided', 'refunded')
+                     AND o.cancelled_at IS NULL
+               ), 0) AS revenue
+        FROM days
+        LEFT JOIN shopify_orders o ON o.shopify_created_at::date = days.d
+        GROUP BY days.d
+        ORDER BY days.d
+    """)
+    sparkline = [
+        {'day': r['day'], 'orders': int(r['orders'] or 0), 'revenue': float(r['revenue'] or 0)}
+        for r in sparkline_rows
+    ]
+
+    stats = dict(shopify_stats)
+    stats['last_import'] = last_import['imported_at'] if last_import else None
 
     return render_template('dashboard.html',
-                           blanks=blanks,
-                           attention_blanks=attention_blanks,
-                           type_stock=type_stock,
                            stats=stats,
-                           restocks=restocks)
-
-
-def _compute_status(blank):
-    stock = float(blank['current_stock'] or 0)
-    burn = float(blank['avg_daily_burn'] or 0)
-    days = blank['days_to_stockout']
-    lead = blank['lead_time_days'] or 28
-    buffer = blank['safety_buffer_days'] or 7
-    reorder = blank['reorder_level']
-
-    # Manual override check
-    if reorder is not None and stock <= float(reorder):
-        return 'red' if stock == 0 else 'yellow'
-
-    # Zero burn cases
-    if burn == 0 and stock <= 0:
-        return 'red'
-    if burn == 0:
-        return 'gray'
-
-    # Days-based
-    if days is not None:
-        d = float(days)
-        if d <= lead:
-            return 'red'
-        if d <= lead + buffer:
-            return 'yellow'
-    return 'green'
+                           last_sync=last_sync,
+                           recent_unfulfilled=recent_unfulfilled,
+                           store_breakdown=store_breakdown,
+                           sparkline=sparkline,
+                           today=today)

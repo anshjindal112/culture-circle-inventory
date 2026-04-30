@@ -1,12 +1,17 @@
 import os
 from dotenv import load_dotenv
 
-# Load .env from project root
+# Load .env from the project root if present (no-op on Vercel where env vars
+# come from the dashboard).
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'cc-inventory-dev-key')
+
+    # Hosted providers (Vercel Postgres / Neon / Supabase) ship a single
+    # connection string. Fall back to per-field vars for local dev.
+    DATABASE_URL = os.environ.get('DATABASE_URL', '')
     DB_NAME = os.environ.get('DB_NAME', 'culture_circle_inventory')
     DB_USER = os.environ.get('DB_USER', 'anshjindal')
     DB_PASSWORD = os.environ.get('DB_PASSWORD', '')
@@ -28,6 +33,8 @@ SHOPIFY_STORE_PREFIXES = [
     'OFF_SUPPLY',
     'FORFKSAKE',
     'MYUGEN',
+    'ALANKOCH',
+    'BE_AUTYST',
 ]
 
 

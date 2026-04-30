@@ -3,9 +3,14 @@
 {% block page_title %}Shopify Orders{% endblock %}
 
 {% block topbar_actions %}
+<a href="{{ url_for('orders.export_csv', store=store_filter, status=status_filter, fulfillment=fulfillment_filter, q=search, date_from=date_from, date_to=date_to) }}"
+   class="btn-ghost btn-sm-cc"
+   title="Download the currently filtered orders as a CSV ready for fulfilment">
+    <i class="bi bi-download"></i>Export CSV{% if total_count %} ({{ total_count }}){% endif %}
+</a>
 <form method="post" action="{{ url_for('orders.sync_orders') }}" class="d-inline">
-    <button type="submit" class="btn-cc">
-        <i class="bi bi-arrow-clockwise me-1"></i> Sync All Stores
+    <button type="submit" class="btn-cc btn-sm-cc">
+        <i class="bi bi-arrow-clockwise"></i>Sync All Stores
     </button>
 </form>
 {% endblock %}
@@ -117,7 +122,7 @@
 <!-- Filters -->
 <div class="cc-card mb-4">
     <div class="cc-card-body" style="padding:14px 20px;">
-        <form method="get" class="filter-bar">
+        <form method="get" class="filter-bar" id="orderFilterForm">
             <select name="store" class="form-select form-select-sm" style="width:auto;">
                 <option value="">All Stores</option>
                 {% for s in stores %}
@@ -138,12 +143,40 @@
                 <option value="fulfilled" {% if fulfillment_filter == 'fulfilled' %}selected{% endif %}>Fulfilled</option>
                 <option value="partial" {% if fulfillment_filter == 'partial' %}selected{% endif %}>Partial</option>
             </select>
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--cc-text-muted); font-weight:600;">Date</span>
+                <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm" style="width:auto;" max="{{ today }}">
+                <span style="color:var(--cc-text-muted);">→</span>
+                <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm" style="width:auto;" max="{{ today }}">
+            </div>
             <input type="text" name="q" value="{{ search }}" placeholder="Search name, email, phone..." class="form-control form-control-sm" style="width:220px;">
             <button type="submit" class="btn-cc btn-sm-cc">Filter</button>
-            {% if store_filter or status_filter or fulfillment_filter or search %}
+            {% if store_filter or status_filter or fulfillment_filter or search or date_from or date_to %}
             <a href="{{ url_for('orders.list_orders') }}" class="btn-ghost btn-sm-cc">Clear</a>
             {% endif %}
+            <a href="{{ url_for('orders.export_csv', store=store_filter, status=status_filter, fulfillment=fulfillment_filter, q=search, date_from=date_from, date_to=date_to) }}"
+               class="btn-ghost btn-sm-cc"
+               style="margin-left:auto;"
+               title="Download the currently filtered orders as a CSV ready for fulfilment">
+                <i class="bi bi-download"></i>Export CSV{% if total_count %} · {{ total_count }}{% endif %}
+            </a>
         </form>
+        <div class="d-flex align-items-center gap-2 mt-2 flex-wrap" style="font-size:11.5px;">
+            <span style="color:var(--cc-text-muted); text-transform:uppercase; letter-spacing:1px; font-weight:600;">Quick:</span>
+            <a href="{{ url_for('orders.list_orders', store=store_filter, status=status_filter, fulfillment=fulfillment_filter, q=search, date_from=today, date_to=today) }}"
+               class="btn-ghost btn-sm-cc" style="padding:3px 9px; font-size:11.5px;">Today</a>
+            {% set y = (today | string) %}
+            <a href="{{ url_for('orders.list_orders', store=store_filter, status=status_filter, fulfillment=fulfillment_filter, q=search, date_from=date_yesterday, date_to=date_yesterday) }}"
+               class="btn-ghost btn-sm-cc" style="padding:3px 9px; font-size:11.5px;">Yesterday</a>
+            <a href="{{ url_for('orders.list_orders', store=store_filter, status=status_filter, fulfillment=fulfillment_filter, q=search, date_from=date_7d_ago, date_to=today) }}"
+               class="btn-ghost btn-sm-cc" style="padding:3px 9px; font-size:11.5px;">Last 7 days</a>
+            <a href="{{ url_for('orders.list_orders', store=store_filter, status=status_filter, fulfillment=fulfillment_filter, q=search, date_from=date_30d_ago, date_to=today) }}"
+               class="btn-ghost btn-sm-cc" style="padding:3px 9px; font-size:11.5px;">Last 30 days</a>
+            {% if date_from or date_to %}
+            <a href="{{ url_for('orders.list_orders', store=store_filter, status=status_filter, fulfillment=fulfillment_filter, q=search) }}"
+               class="btn-ghost btn-sm-cc" style="padding:3px 9px; font-size:11.5px;">Clear dates</a>
+            {% endif %}
+        </div>
     </div>
 </div>
 
@@ -228,7 +261,7 @@
     {% if total_pages > 1 %}
     <div class="cc-pagination" style="padding-bottom:16px;">
         {% if page > 1 %}
-        <a href="?page={{ page - 1 }}&store={{ store_filter }}&status={{ status_filter }}&fulfillment={{ fulfillment_filter }}&q={{ search }}">
+        <a href="?page={{ page - 1 }}&store={{ store_filter }}&status={{ status_filter }}&fulfillment={{ fulfillment_filter }}&q={{ search }}&date_from={{ date_from }}&date_to={{ date_to }}">
             <i class="bi bi-chevron-left"></i>
         </a>
         {% endif %}
@@ -236,13 +269,13 @@
             {% if p == page %}
             <span class="active">{{ p }}</span>
             {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
-            <a href="?page={{ p }}&store={{ store_filter }}&status={{ status_filter }}&fulfillment={{ fulfillment_filter }}&q={{ search }}">{{ p }}</a>
+            <a href="?page={{ p }}&store={{ store_filter }}&status={{ status_filter }}&fulfillment={{ fulfillment_filter }}&q={{ search }}&date_from={{ date_from }}&date_to={{ date_to }}">{{ p }}</a>
             {% elif p == 4 or p == total_pages - 3 %}
             <span style="border:none; color:var(--cc-text-muted);">...</span>
             {% endif %}
         {% endfor %}
         {% if page < total_pages %}
-        <a href="?page={{ page + 1 }}&store={{ store_filter }}&status={{ status_filter }}&fulfillment={{ fulfillment_filter }}&q={{ search }}">
+        <a href="?page={{ page + 1 }}&store={{ store_filter }}&status={{ status_filter }}&fulfillment={{ fulfillment_filter }}&q={{ search }}&date_from={{ date_from }}&date_to={{ date_to }}">
             <i class="bi bi-chevron-right"></i>
         </a>
         {% endif %}

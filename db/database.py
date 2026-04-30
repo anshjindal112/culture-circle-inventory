@@ -3,16 +3,23 @@ import psycopg2.extras
 from flask import g, current_app
 
 
+def _open_connection():
+    cfg = current_app.config
+    url = cfg.get('DATABASE_URL') or ''
+    if url:
+        return psycopg2.connect(url)
+    return psycopg2.connect(
+        dbname=cfg['DB_NAME'],
+        user=cfg['DB_USER'],
+        password=cfg['DB_PASSWORD'],
+        host=cfg['DB_HOST'],
+        port=cfg['DB_PORT'],
+    )
+
+
 def get_db():
     if 'db' not in g:
-        cfg = current_app.config
-        g.db = psycopg2.connect(
-            dbname=cfg['DB_NAME'],
-            user=cfg['DB_USER'],
-            password=cfg['DB_PASSWORD'],
-            host=cfg['DB_HOST'],
-            port=cfg['DB_PORT'],
-        )
+        g.db = _open_connection()
         g.db.autocommit = False
     return g.db
 

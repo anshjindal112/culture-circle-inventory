@@ -6,6 +6,8 @@ from routes.csv_import import csv_bp
 from routes.blanks import blanks_bp
 from routes.restock import restock_bp
 from routes.orders import orders_bp
+from routes.sales import sales_bp
+from routes.inventory_sync import inventory_sync_bp
 
 
 def create_app():
@@ -40,6 +42,8 @@ def create_app():
     app.register_blueprint(blanks_bp)
     app.register_blueprint(restock_bp)
     app.register_blueprint(orders_bp)
+    app.register_blueprint(sales_bp)
+    app.register_blueprint(inventory_sync_bp)
 
     return app
 

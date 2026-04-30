@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% block title %}Sales Analytics - Culture Circle{% endblock %}
+{% block page_title %}Sales Analytics{% endblock %}
+
+{% block topbar_actions %}
+<a href="/orders" class="btn-ghost btn-sm-cc"><i class="bi bi-bag me-1"></i>Orders</a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .brand-row { transition: background 0.1s; }
+    .brand-row:hover { background: #f8f9fa; }
+    .share-bar {
+        height: 8px; background: #f1f3f5; border-radius: 4px; overflow: hidden;
+        min-width: 80px;
+    }
+    .share-bar-fill { height: 100%; border-radius: 4px; background: var(--cc-accent); }
+    .preset-btn {
+        padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+        border: 1px solid var(--cc-border); background: #fff; color: var(--cc-text-muted);
+        text-decoration: none; transition: all 0.15s;
+    }
+    .preset-btn:hover { background: #f8f9fa; color: var(--cc-text); }
+    .preset-btn.active { background: var(--cc-accent); color: #fff; border-color: var(--cc-accent); }
+    .trend-bar {
+        display: flex; align-items: flex-end; gap: 2px; height: 60px;
+    }
+    .trend-bar-item {
+        flex: 1; background: var(--cc-accent); border-radius: 3px 3px 0 0;
+        min-width: 4px; opacity: 0.7; position: relative;
+    }
+    .trend-bar-item:hover { opacity: 1; }
+    .trend-bar-item .trend-tip {
+        display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+        background: var(--cc-dark); color: #fff; padding: 4px 8px; border-radius: 4px;
+        font-size: 10px; white-space: nowrap; margin-bottom: 4px;
+    }
+    .trend-bar-item:hover .trend-tip { display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Date & Brand Filters -->
+<div class="cc-card mb-4">
+    <div class="cc-card-body" style="padding:14px 20px;">
+        <form method="get" class="d-flex flex-wrap align-items-center gap-3">
+            <!-- Date presets -->
+            <div class="d-flex gap-1">
+                <a href="?preset=today&brand={{ brand_filter }}" class="preset-btn {% if preset == 'today' %}active{% endif %}">Today</a>
+                <a href="?preset=7d&brand={{ brand_filter }}" class="preset-btn {% if preset == '7d' %}active{% endif %}">7 Days</a>
+                <a href="?preset=30d&brand={{ brand_filter }}" class="preset-btn {% if preset == '30d' %}active{% endif %}">30 Days</a>
+                <a href="?preset=this_month&brand={{ brand_filter }}" class="preset-btn {% if preset == 'this_month' %}active{% endif %}">This Month</a>
+                <a href="?preset=last_month&brand={{ brand_filter }}" class="preset-btn {% if preset == 'last_month' %}active{% endif %}">Last Month</a>
+                <a href="?preset=all&brand={{ brand_filter }}" class="preset-btn {% if preset == 'all' or (not preset and not date_from and not date_to) %}active{% endif %}">All Time</a>
+            </div>
+
+            <div style="width:1px; height:24px; background:var(--cc-border);"></div>
+
+            <!-- Custom date range -->
+            <div class="d-flex align-items-center gap-2">
+                <input type="date" name="from" value="{{ date_from }}" class="form-control form-control-sm" style="width:140px; border-radius:6px; font-size:12px;">
+                <span style="font-size:12px; color:var(--cc-text-muted);">to</span>
+                <input type="date" name="to" value="{{ date_to }}" class="form-control form-control-sm" style="width:140px; border-radius:6px; font-size:12px;">
+            </div>
+
+            <!-- Brand filter -->
+            <select name="brand" class="form-select form-select-sm" style="width:auto; border-radius:6px; font-size:12px;">
+                <option value="">All Brands</option>
+                {% for b in available_brands %}
+                <option value="{{ b.store_prefix }}" {% if brand_filter == b.store_prefix %}selected{% endif %}>
+                    {{ b.store_prefix | replace('_', ' ') | title }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <button type="submit" class="btn-cc btn-sm-cc">Apply</button>
+            {% if brand_filter or date_from or date_to %}
+            <a href="/sales" class="btn-ghost btn-sm-cc">Clear</a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md col-xl">
+        <div class="stat-card">
+            <div class="stat-icon purple"><i class="bi bi-currency-rupee"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Total Sales</div>
+                <div class="stat-value">
+                    {% set sales = totals.total_sales | float %}
+                    {% if sales >= 100000 %}{{ "%.1f" | format(sales / 100000) }}L
+                    {% elif sales >= 1000 %}{{ "%.1f" | format(sales / 1000) }}K
+                    {% else %}{{ "%.0f" | format(sales) }}{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md col-xl">
+        <div class="stat-card">
+            <div class="stat-icon blue"><i class="bi bi-bag-check"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Orders</div>
+                <div class="stat-value">{{ totals.total_orders }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md col-xl">
+        <div class="stat-card">
+            <div class="stat-icon green"><i class="bi bi-receipt"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Avg Order Value</div>
+                <div class="stat-value">{{ "%.0f" | format(totals.avg_order_value | float) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md col-xl">
+        <div class="stat-card">
+            <div class="stat-icon yellow"><i class="bi bi-shop"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Brands</div>
+                <div class="stat-value">{{ totals.brands_with_sales }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md col-xl">
+        <div class="stat-card">
+            <div class="stat-icon gray"><i class="bi bi-calendar-check"></i></div>
+            <div class="stat-info">
+                <div class="stat-label">Active Days</div>
+                <div class="stat-value">{{ totals.active_days }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Daily Trend -->
+{% if daily_trend and daily_trend | length > 1 %}
+<div class="cc-card mb-4">
+    <div class="cc-card-header">
+        <h6>Daily Sales Trend</h6>
+        <span style="font-size:11px; color:var(--cc-text-muted);">{{ daily_trend | length }} days</span>
+    </div>
+    <div class="cc-card-body" style="padding:16px 20px;">
+        {% set max_sales = daily_trend | map(attribute='sales') | max %}
+        <div class="trend-bar">
+            {% for d in daily_trend %}
+            <div class="trend-bar-item" style="height: {{ ((d.sales | float) / (max_sales | float) * 100) | round(1) }}%;">
+                <div class="trend-tip">{{ d.sale_date.strftime('%b %d') }}: {{ "%.0f" | format(d.sales | float) }} ({{ d.orders }} orders)</div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="d-flex justify-content-between mt-1" style="font-size:10px; color:var(--cc-text-muted);">
+            <span>{{ daily_trend[0].sale_date.strftime('%b %d') }}</span>
+            <span>{{ daily_trend[-1].sale_date.strftime('%b %d') }}</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Brand Breakdown -->
+<div class="cc-card mb-4">
+    <div class="cc-card-header">
+        <h6>Sales by Brand</h6>
+    </div>
+    {% if brand_sales %}
+    <div class="table-responsive">
+        <table class="cc-table">
+            <thead>
+                <tr>
+                    <th>Brand</th>
+                    <th style="text-align:right">Total Sales</th>
+                    <th>Share</th>
+                    <th style="text-align:right">Orders</th>
+                    <th style="text-align:right">AOV</th>
+                    <th style="text-align:right">Daily Avg</th>
+                    <th style="text-align:right">Products</th>
+                    <th style="text-align:right">First Order</th>
+                    <th style="text-align:right">Last Order</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set total_all = totals.total_sales | float %}
+                {% for b in brand_sales %}
+                {% set share = ((b.total_sales | float) / total_all * 100) if total_all > 0 else 0 %}
+                <tr class="brand-row">
+                    <td>
+                        <a href="?brand={{ b.store_prefix }}&from={{ date_from }}&to={{ date_to }}&preset={{ preset }}"
+                           style="text-decoration:none; font-weight:600; color:var(--cc-accent);">
+                            {{ b.store_prefix | replace('_', ' ') | title }}
+                        </a>
+                    </td>
+                    <td style="text-align:right; font-weight:700; font-size:14px;">
+                        {% set s = b.total_sales | float %}
+                        {% if s >= 100000 %}{{ "%.1f" | format(s / 100000) }}L
+                        {% elif s >= 1000 %}{{ "%.1f" | format(s / 1000) }}K
+                        {% else %}{{ "%.0f" | format(s) }}{% endif %}
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="share-bar"><div class="share-bar-fill" style="width:{{ share }}%;"></div></div>
+                            <span style="font-size:12px; font-weight:500;">{{ "%.1f" | format(share) }}%</span>
+                        </div>
+                    </td>
+                    <td style="text-align:right;">{{ b.orders }}</td>
+                    <td style="text-align:right;">{{ "%.0f" | format(b.avg_order_value | float) }}</td>
+                    <td style="text-align:right; color:var(--cc-text-muted);">
+                        {% if b.daily_run_rate %}{{ "%.0f" | format(b.daily_run_rate | float) }}{% else %}-{% endif %}
+                    </td>
+                    <td style="text-align:right;">{{ b.unique_products }}</td>
+                    <td style="text-align:right; font-size:12px; color:var(--cc-text-muted);">{{ b.first_order.strftime('%b %d') if b.first_order else '-' }}</td>
+                    <td style="text-align:right; font-size:12px; color:var(--cc-text-muted);">{{ b.last_order.strftime('%b %d') if b.last_order else '-' }}</td>
+                    <td>
+                        <a href="/orders?store={{ b.store_prefix }}" class="btn-ghost btn-sm-cc"><i class="bi bi-chevron-right"></i></a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <!-- Totals row -->
+            <tfoot>
+                <tr style="border-top:2px solid var(--cc-border); font-weight:700;">
+                    <td>Total</td>
+                    <td style="text-align:right; font-size:14px;">
+                        {% if total_all >= 100000 %}{{ "%.1f" | format(total_all / 100000) }}L
+                        {% elif total_all >= 1000 %}{{ "%.1f" | format(total_all / 1000) }}K
+                        {% else %}{{ "%.0f" | format(total_all) }}{% endif %}
+                    </td>
+                    <td></td>
+                    <td style="text-align:right;">{{ totals.total_orders }}</td>
+                    <td style="text-align:right;">{{ "%.0f" | format(totals.avg_order_value | float) }}</td>
+                    <td colspan="5"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-graph-down"></i>
+        <p>No sales data for this period.{% if brand_filter or date_from %} <a href="/sales">Clear filters</a>{% endif %}</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Top Products -->
+{% if top_products %}
+<div class="cc-card mb-4">
+    <div class="cc-card-header">
+        <h6>Top Products by Revenue</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="cc-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Product</th>
+                    <th>Brand</th>
+                    <th style="text-align:right">Revenue</th>
+                    <th style="text-align:right">Units</th>
+                    <th style="text-align:right">Orders</th>
+                    <th style="text-align:right">Avg Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in top_products %}
+                <tr>
+                    <td style="font-size:11px; color:var(--cc-text-muted);">{{ loop.index }}</td>
+                    <td style="font-weight:500; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        {{ p.title }}
+                    </td>
+                    <td>
+                        <span style="font-size:11px; background:rgba(108,92,231,0.08); padding:2px 8px; border-radius:4px; color:var(--cc-accent); font-weight:500;">
+                            {{ p.store_prefix | replace('_', ' ') | title }}
+                        </span>
+                    </td>
+                    <td style="text-align:right; font-weight:600;">
+                        {% set r = p.revenue | float %}
+                        {% if r >= 100000 %}{{ "%.1f" | format(r / 100000) }}L
+                        {% elif r >= 1000 %}{{ "%.1f" | format(r / 1000) }}K
+                        {% else %}{{ "%.0f" | format(r) }}{% endif %}
+                    </td>
+                    <td style="text-align:right;">{{ p.units_sold }}</td>
+                    <td style="text-align:right;">{{ p.orders }}</td>
+                    <td style="text-align:right; color:var(--cc-text-muted);">{{ "%.0f" | format(p.avg_price | float) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

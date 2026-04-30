@@ -3,11 +3,14 @@ Shopify Orders routes — view, filter, and sync orders from all connected store
 Supports bidirectional status updates.
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+import csv
+import io
+from datetime import date, datetime, timedelta
+
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response
 from db.database import query, execute, execute_returning, get_db
 from services.shopify_service import ShopifyClient, normalize_order
 from config import get_shopify_stores
-from datetime import datetime
 
 orders_bp = Blueprint('orders', __name__, url_prefix='/orders')
 
@@ -21,30 +24,15 @@ def list_orders():
     status_filter = request.args.get('status', '')
     fulfillment_filter = request.args.get('fulfillment', '')
     search = request.args.get('q', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
     page = int(request.args.get('page', 1))
     per_page = 50
 
-    conditions = []
-    params = []
-
-    if store_filter:
-        conditions.append("o.store_prefix = %s")
-        params.append(store_filter)
-    if status_filter:
-        conditions.append("o.financial_status = %s")
-        params.append(status_filter)
-    if fulfillment_filter:
-        conditions.append("o.fulfillment_status = %s")
-        params.append(fulfillment_filter)
-    if search:
-        conditions.append(
-            "(o.name ILIKE %s OR o.email ILIKE %s OR o.customer_first_name ILIKE %s "
-            "OR o.customer_last_name ILIKE %s OR o.shipping_phone ILIKE %s OR o.phone ILIKE %s)"
-        )
-        q = f"%{search}%"
-        params.extend([q, q, q, q, q, q])
-
-    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    where, params = _build_orders_filter(
+        store_filter, status_filter, fulfillment_filter, search,
+        date_from, date_to,
+    )
 
     # Total count
     total = query(
@@ -76,7 +64,7 @@ def list_orders():
 
     # Last sync errors to determine which stores have permission issues
     last_sync_log = query(
-        "SELECT errors FROM shopify_sync_log WHERE errors IS NOT NULL ORDER BY started_at DESC LIMIT 1",
+        "SELECT errors FROM shopify_sync_log ORDER BY started_at DESC LIMIT 1",
         fetch='one'
     )
     error_stores = set()
@@ -112,6 +100,7 @@ def list_orders():
         fetch='one'
     )
 
+    today_d = date.today()
     return render_template('orders/list.html',
                            orders=orders,
                            stores=stores,
@@ -122,6 +111,12 @@ def list_orders():
                            status_filter=status_filter,
                            fulfillment_filter=fulfillment_filter,
                            search=search,
+                           date_from=date_from,
+                           date_to=date_to,
+                           today=today_d.isoformat(),
+                           date_yesterday=(today_d - timedelta(days=1)).isoformat(),
+                           date_7d_ago=(today_d - timedelta(days=6)).isoformat(),
+                           date_30d_ago=(today_d - timedelta(days=29)).isoformat(),
                            page=page,
                            total_pages=total_pages,
                            total_count=total_count)
@@ -364,7 +359,153 @@ def api_stats():
     return jsonify(_get_order_stats())
 
 
+# ── CSV Export ────────────────────────────────────────────────────────────
+
+@orders_bp.route('/export.csv')
+def export_csv():
+    """Stream the currently-filtered orders as a CSV for offline fulfilment.
+
+    Honors the same `store`, `status`, `fulfillment`, `q` query params as
+    the list page. Includes one row per line item (so SKU + qty are usable
+    by whoever is packing).
+    """
+    store_filter = request.args.get('store', '')
+    status_filter = request.args.get('status', '')
+    fulfillment_filter = request.args.get('fulfillment', '')
+    search = request.args.get('q', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+
+    where, params = _build_orders_filter(
+        store_filter, status_filter, fulfillment_filter, search,
+        date_from, date_to,
+    )
+
+    rows = query(f"""
+        SELECT
+            o.name AS order_name, o.order_number, o.store_prefix,
+            o.shopify_created_at, o.financial_status, o.fulfillment_status,
+            o.currency, o.total_price,
+            o.customer_first_name, o.customer_last_name,
+            o.email, COALESCE(o.shipping_phone, o.phone, o.customer_phone) AS phone,
+            o.shipping_name, o.shipping_address1, o.shipping_address2,
+            o.shipping_city, o.shipping_province, o.shipping_zip, o.shipping_country,
+            o.note, o.tags,
+            i.sku, i.title AS item_title, i.variant_title, i.quantity, i.price
+        FROM shopify_orders o
+        LEFT JOIN shopify_order_items i ON i.order_id = o.id
+        {where}
+        ORDER BY o.shopify_created_at DESC NULLS LAST, o.id DESC, i.id ASC
+    """, tuple(params) if params else None)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        'Order', 'Order #', 'Store', 'Created', 'Payment', 'Fulfillment',
+        'Currency', 'Total',
+        'Customer Name', 'Email', 'Phone',
+        'Ship To', 'Address 1', 'Address 2', 'City', 'Province', 'ZIP', 'Country',
+        'SKU', 'Item', 'Variant', 'Qty', 'Unit Price',
+        'Note', 'Tags',
+    ])
+
+    for r in rows:
+        writer.writerow([
+            r.get('order_name') or '',
+            r.get('order_number') or '',
+            r.get('store_prefix') or '',
+            r['shopify_created_at'].strftime('%Y-%m-%d %H:%M') if r.get('shopify_created_at') else '',
+            r.get('financial_status') or '',
+            r.get('fulfillment_status') or '',
+            r.get('currency') or '',
+            f"{float(r['total_price']):.2f}" if r.get('total_price') is not None else '',
+            f"{r.get('customer_first_name') or ''} {r.get('customer_last_name') or ''}".strip(),
+            r.get('email') or '',
+            r.get('phone') or '',
+            r.get('shipping_name') or '',
+            r.get('shipping_address1') or '',
+            r.get('shipping_address2') or '',
+            r.get('shipping_city') or '',
+            r.get('shipping_province') or '',
+            r.get('shipping_zip') or '',
+            r.get('shipping_country') or '',
+            r.get('sku') or '',
+            r.get('item_title') or '',
+            r.get('variant_title') or '',
+            r.get('quantity') or '',
+            f"{float(r['price']):.2f}" if r.get('price') is not None else '',
+            r.get('note') or '',
+            r.get('tags') or '',
+        ])
+
+    parts = ['shopify-orders']
+    if store_filter:
+        parts.append(store_filter)
+    if fulfillment_filter:
+        parts.append(fulfillment_filter)
+    if status_filter:
+        parts.append(status_filter)
+    if date_from and date_to and date_from == date_to:
+        parts.append(date_from)
+    elif date_from or date_to:
+        parts.append(f"{date_from or 'start'}_to_{date_to or 'now'}")
+    parts.append(datetime.now().strftime('%H%M'))
+    filename = '-'.join(parts) + '.csv'
+
+    return Response(
+        buf.getvalue(),
+        mimetype='text/csv; charset=utf-8',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────
+
+def _build_orders_filter(store_filter, status_filter, fulfillment_filter, search,
+                         date_from='', date_to=''):
+    """Shared WHERE clause + params builder used by list_orders and export_csv.
+
+    date_from / date_to are ISO date strings (YYYY-MM-DD). They filter on
+    `shopify_created_at::date` inclusively. Invalid dates are silently ignored
+    so a typo doesn't 500 the page.
+    """
+    conditions = ["o.financial_status NOT IN ('voided', 'refunded')", "o.cancelled_at IS NULL"]
+    params = []
+
+    if store_filter:
+        conditions.append("o.store_prefix = %s")
+        params.append(store_filter)
+    if status_filter:
+        conditions.append("o.financial_status = %s")
+        params.append(status_filter)
+    if fulfillment_filter:
+        conditions.append("o.fulfillment_status = %s")
+        params.append(fulfillment_filter)
+    if search:
+        conditions.append(
+            "(o.name ILIKE %s OR o.email ILIKE %s OR o.customer_first_name ILIKE %s "
+            "OR o.customer_last_name ILIKE %s OR o.shipping_phone ILIKE %s OR o.phone ILIKE %s)"
+        )
+        q = f"%{search}%"
+        params.extend([q, q, q, q, q, q])
+    if date_from:
+        try:
+            datetime.strptime(date_from, '%Y-%m-%d')
+            conditions.append("o.shopify_created_at::date >= %s")
+            params.append(date_from)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            datetime.strptime(date_to, '%Y-%m-%d')
+            conditions.append("o.shopify_created_at::date <= %s")
+            params.append(date_to)
+        except ValueError:
+            pass
+
+    where = f"WHERE {' AND '.join(conditions)}"
+    return where, params
+
 
 def _get_client(store_prefix):
     """Get a ShopifyClient for a given store prefix."""
@@ -376,7 +517,7 @@ def _get_client(store_prefix):
 
 
 def _get_order_stats():
-    """Compute summary stats for orders."""
+    """Compute summary stats for orders — excludes voided/cancelled."""
     stats_rows = query("""
         SELECT
             COUNT(*) AS total_orders,
@@ -385,10 +526,11 @@ def _get_order_stats():
             COUNT(*) FILTER (WHERE fulfillment_status = 'partial') AS partial,
             COUNT(*) FILTER (WHERE financial_status = 'paid') AS paid,
             COUNT(*) FILTER (WHERE financial_status = 'pending') AS pending_payment,
-            COUNT(*) FILTER (WHERE financial_status = 'refunded') AS refunded,
             COUNT(DISTINCT store_prefix) AS store_count,
             COALESCE(SUM(total_price), 0) AS total_revenue
         FROM shopify_orders
+        WHERE financial_status NOT IN ('voided', 'refunded')
+          AND cancelled_at IS NULL
     """, fetch='one')
     return stats_rows or {}
 
