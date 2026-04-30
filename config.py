@@ -18,6 +18,10 @@ class Config:
     DB_HOST = os.environ.get('DB_HOST', 'localhost')
     DB_PORT = os.environ.get('DB_PORT', '5432')
 
+    # Display + SQL "today" calculations use this timezone. Vercel runs
+    # functions in UTC; Culture Circle is India-based, so default IST.
+    APP_TIMEZONE = os.environ.get('APP_TIMEZONE', 'Asia/Kolkata')
+
 
 # All Shopify store prefixes from .env
 SHOPIFY_STORE_PREFIXES = [

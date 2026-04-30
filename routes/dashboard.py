@@ -1,6 +1,7 @@
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, current_app
 from db.database import query
 
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -8,7 +9,8 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/')
 def index():
-    today = date.today().isoformat()
+    tz = ZoneInfo(current_app.config.get('APP_TIMEZONE') or 'Asia/Kolkata')
+    today = datetime.now(tz).date().isoformat()
     # Orders-only landing page. Inventory/stock surface lives in the Google Sheet.
     shopify_stats = query("""
         SELECT

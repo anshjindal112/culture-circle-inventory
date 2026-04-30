@@ -6,11 +6,19 @@ Supports bidirectional status updates.
 import csv
 import io
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response, current_app
 from db.database import query, execute, execute_returning, get_db
 from services.shopify_service import ShopifyClient, normalize_order
 from config import get_shopify_stores
+
+
+def _today_in_tz():
+    """Return today's date in the app's configured timezone (default Asia/Kolkata).
+    Vercel runs in UTC; this keeps "Today" matching the user's clock."""
+    tz = ZoneInfo(current_app.config.get('APP_TIMEZONE') or 'Asia/Kolkata')
+    return datetime.now(tz).date()
 
 orders_bp = Blueprint('orders', __name__, url_prefix='/orders')
 
@@ -100,7 +108,7 @@ def list_orders():
         fetch='one'
     )
 
-    today_d = date.today()
+    today_d = _today_in_tz()
     return render_template('orders/list.html',
                            orders=orders,
                            stores=stores,
