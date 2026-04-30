@@ -38,12 +38,26 @@ SHOPIFY_STORE_PREFIXES = [
 ]
 
 
+# Vercel/POSIX env var names can't start with a digit. For prefixes that do,
+# we look up the env vars under a digit-free alias while keeping the original
+# prefix as the in-code/DB identifier (so existing Shopify orders stay tied
+# to their store).
+ENV_PREFIX_ALIASES = {
+    '24SONGS': 'SONGS24',
+}
+
+
+def _env_prefix(prefix: str) -> str:
+    return ENV_PREFIX_ALIASES.get(prefix, prefix)
+
+
 def get_shopify_stores():
     """Return list of configured Shopify stores with credentials."""
     stores = []
     for prefix in SHOPIFY_STORE_PREFIXES:
-        token = os.environ.get(f'{prefix}_SHOPIFY_ACCESS_TOKEN')
-        domain = os.environ.get(f'{prefix}_SHOPIFY_DOMAIN')
+        env_prefix = _env_prefix(prefix)
+        token = os.environ.get(f'{env_prefix}_SHOPIFY_ACCESS_TOKEN')
+        domain = os.environ.get(f'{env_prefix}_SHOPIFY_DOMAIN')
         if token and domain:
             stores.append({
                 'prefix': prefix,
