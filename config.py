@@ -39,6 +39,7 @@ SHOPIFY_STORE_PREFIXES = [
     'MYUGEN',
     'ALANKOCH',
     'BE_AUTYST',
+    'GYMBRAT',
 ]
 
 
